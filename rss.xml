@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>k0shane</title><description>Offensive Security Stuff</description><link>https://k0shane.github.io/</link><language>en</language><item><title>How I get 1500$ bounty with IDOR to Account Takeover</title><link>https://k0shane.github.io/posts/bug-bounty/how-i-get-1500-idor-ato/</link><guid isPermaLink="true">https://k0shane.github.io/posts/bug-bounty/how-i-get-1500-idor-ato/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;Back in 2022, I didn&apos;t have a job yet at that time. So I was just doing full time bug bounty hunting and got a couple of bounties from hackerone and zerocopter. One day I saw a fresh program in &lt;code&gt;zerocopter&lt;/code&gt; by searching with google dorks, I think no one hunt it yet on this program except their internal pentest team.
 There are no other subdomains and only one domain is in scope. So I quickly grab the link and make an account.&lt;/p&gt;
 &lt;p&gt;After creating account, I go to my profile and it look like this.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/bbh/bbh1.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 &lt;p&gt;I noticed that we have our own &lt;code&gt;userID&lt;/code&gt;, it look like unique ID. And we can edit our profile such as &lt;code&gt;firstName&lt;/code&gt;, &lt;code&gt;lastName&lt;/code&gt; and &lt;code&gt;Email&lt;/code&gt;.
 So I intercept edit profile endpoint with burp and the request look like this.&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;PUT /api/users/86a2d2ba-0616-4468-8bb4-74a4ee620e9e HTTP/2
@@ -35,11 +35,11 @@ Accept-Language: en-US,en;q=0.9
 &lt;p&gt;Fortunately, it was changed the name and email of another user&apos;s account. To be honest, I really did not expect that cuz in their responsible disclosure page, they already mentioned that they have their own internal team to test their website. So this kind of bug should be aware.&lt;/p&gt;
 &lt;p&gt;Now the problem is how can we get that kind of unique ID? Then I found one endpoint that disclosing that &lt;code&gt;userID&lt;/code&gt; which in &lt;code&gt;Billing Admins&lt;/code&gt; tab.
 In this tab, we can invite another member. So after the user accepted our invite we can see like this.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/bbh/bbh2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 &lt;p&gt;If we click on member account, we can see their profile including their &lt;code&gt;unquieID&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/bbh/bbh3.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 &lt;p&gt;So to get the &lt;code&gt;userID&lt;/code&gt;, the user must be in our team or otherwise we have to invite them. If we get their ID, we can change their email which will lead to account takeover. Then I quickly create the POC and report it. After one day, the issue has been verified and they reward me 4 digit bounty which I wasn&apos;t expect xD.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/src/assets/bbh/bbh4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/bbh/bbh4.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 </content:encoded></item><item><title>Win x86 Stack Based Buffer Overflow</title><link>https://k0shane.github.io/posts/win32-exp/stack-base-buffer-overflow/</link><guid isPermaLink="true">https://k0shane.github.io/posts/win32-exp/stack-base-buffer-overflow/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;I won&apos;t talk about details in here like how the stack work or what are registers. You must have first knowledge in basic assembly language and debugger because I intended this blog for practical purpose, so I don&apos;t wanna make you bored for reading this kind of stuff. If you don&apos;t know yet how the stack work, there are plenty of good resources out there.I recommend to read it first. So Let&apos;s cut to the chase.&lt;/p&gt;
 &lt;h3&gt;What is buffer overflow?&lt;/h3&gt;
 &lt;p&gt;Buffer Overflow may happen when a program writes more data to a buffer (user inputs) beyond it can hold.
